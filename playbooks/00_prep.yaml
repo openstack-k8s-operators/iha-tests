@@ -1,0 +1,142 @@
+---
+- name: Prep for Instance HA Tests
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: Install openstackclient
+      ansible.builtin.package:
+        name:
+          - python3-openstackclient
+          - python3-osc-placement
+        state: present
+      become: true
+
+    - name: Create dir
+      ansible.builtin.file:
+        path: /home/zuul/.config/openstack/
+        state: directory
+        mode: '0755'
+
+    - name: Create clouds.yaml file
+      ansible.builtin.copy:
+        dest: /home/zuul/.config/openstack/clouds.yaml
+        content: |
+          clouds:
+              default:
+                  auth:
+                      auth_url: https://keystone-public-openstack.apps.ocp.openstack.lab
+                      project_name: admin
+                      username: admin
+                      user_domain_name: Default
+                      project_domain_name: Default
+                      password: "12345678"
+                  region_name: regionOne
+
+    - name: Get all projects
+      openstack.cloud.project_info:
+        cloud: default
+      register: projects
+
+    - name: Get all servers in each project
+      vars:
+        os_project: "{{ item.id }}"
+      openstack.cloud.server_info:
+        cloud: default
+        all_projects: true
+        filters:
+          project_id: "{{ os_project }}"
+      loop: "{{ projects.projects }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: all_servers
+
+    - name: Delete all servers
+      openstack.cloud.server:
+        cloud: default
+        name: "{{ item.name }}"
+        state: absent
+      loop: "{{ all_servers.results | map(attribute='servers') | select('defined') | list | flatten }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: all_servers.results | map(attribute='servers') | select('defined') | list | flatten | length > 0
+
+    # create openstack networks/routers/etc
+
+    - name: Create privnet
+      openstack.cloud.network:
+        cloud: default
+        state: present
+        name: privnet
+        external: false
+
+    - name: Create priv subnet
+      openstack.cloud.subnet:
+        cloud: default
+        state: present
+        name: privsubnet
+        network_name: privnet
+        cidr: 192.168.200.0/24
+        dns_nameservers:
+          - 10.19.42.41
+        allocation_pool_start: 192.168.200.10
+        allocation_pool_end: 192.168.200.99
+
+    - name: Create router
+      openstack.cloud.router:
+        cloud: default
+        name: myrouter
+        state: present
+        network: public
+        interfaces:
+          - privsubnet
+
+    - name: Create security group
+      openstack.cloud.security_group:
+        cloud: default
+        project: admin
+        name: ping
+        state: present
+
+    - name: Allow ping
+      openstack.cloud.security_group_rule:
+        cloud: default
+        project: admin
+        security_group: ping
+        protocol: icmp
+        remote_ip_prefix: 0.0.0.0/0
+
+    - name: Increase quotas
+      openstack.cloud.quota:
+        cloud: default
+        name: admin
+        floating_ips: -1
+        networks: -1
+        ports: -1
+        volumes: -1
+        ram: -1
+        cores: -1
+        instances: -1
+
+    - name: Download cirros image
+      ansible.builtin.get_url:
+        url: https://download.cirros-cloud.net/0.6.2/cirros-0.6.2-x86_64-disk.img
+        dest: /home/zuul/cirros-0.6.2-iha-x86_64-disk.img
+
+    - name: Upload Cirros Image
+      openstack.cloud.image:
+        cloud: default
+        name: cirros-0.6.2-iha-x86_64-disk.img
+        container_format: bare
+        disk_format: qcow2
+        state: present
+        filename: /home/zuul/cirros-0.6.2-iha-x86_64-disk.img
+
+    - name: Create flavor
+      openstack.cloud.compute_flavor:
+        cloud: default
+        state: present
+        name: m1.nano
+        ram: 128
+        vcpus: 1
+        disk: 1
+        ephemeral: 0

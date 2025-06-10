@@ -1,0 +1,192 @@
+---
+- name: 03 TEST TAG IMAGE
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: Reset iha configmap
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+
+    - name: Apply config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+      changed_when: false
+
+    - name: 03 fetch random string
+      ansible.builtin.shell:
+        cmd: cat ~/.ssh/config |grep 'Host compute' |awk '{print $2}' |head -1|cut -d- -f2
+      register: string
+      changed_when: false
+
+    - name: 03 set string as fact
+      ansible.builtin.set_fact:
+        string: "{{ string.stdout }}"
+
+    - name: 03 Set compute-0 name as fact
+      ansible.builtin.set_fact:
+        compute0: "compute-{{ string }}-0.ctlplane.example.com"
+
+    - name: 03 Set compute-1 name as fact
+      ansible.builtin.set_fact:
+        compute1: "compute-{{ string }}-1.ctlplane.example.com"
+
+    - name: 03 Create tagged image
+      openstack.cloud.image:
+        cloud: default
+        name: cirros-ha
+        container_format: bare
+        disk_format: qcow2
+        state: present
+        filename: /home/zuul/cirros-0.6.2-iha-x86_64-disk.img
+        min_disk: 0
+        min_ram: 0
+
+    - name: 03 set image trait
+      ansible.builtin.command:
+        cmd: openstack --os-cloud default image set --tag trait:CUSTOM_HA cirros-ha
+      changed_when: false
+
+    - name: 03 set resource provider trait
+      ansible.builtin.shell:
+        cmd: |
+          openstack trait create CUSTOM_HA
+          uuid=$(openstack --os-cloud default resource provider list -f value -c uuid |head -1)
+          existing_traits=$(openstack --os-cloud default resource provider trait list -f value $uuid | sed 's/^/--trait /')
+          for i in $(openstack --os-cloud default resource provider list -f value -c uuid); do openstack --os-cloud default resource provider trait set $existing_traits --trait CUSTOM_HA $i; done
+      changed_when: false
+
+    - name: 03 Create instance vm
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: present
+        availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
+        name: vm
+        image: cirros-0.6.2-iha-x86_64-disk.img
+        timeout: 200
+        flavor: m1.nano
+        security_groups:
+          - ping
+        nics:
+          - net-name: privnet
+
+    - name: 03 Create instance vm-ha
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: present
+        availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
+        name: vm-ha
+        image: cirros-ha
+        timeout: 200
+        flavor: m1.nano
+        security_groups:
+          - ping
+        nics:
+          - net-name: privnet
+
+- name: 03 Crash compute-0
+  hosts: hypervisor
+  remote_user: zuul
+  become: true
+  gather_facts: false
+  tasks:
+    - name: 03 Shutdown compute
+      community.libvirt.virt:
+        name: cifmw-compute-{{ hostvars['controller-0']['string'] }}-0
+        state: destroyed
+
+- name: 03 Check status
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 03 Fetch HYPERVISOR for instance vm-ha
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show vm-ha  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
+      register: hypervisor2
+      changed_when: false
+      retries: 60
+      delay: 3
+      until: hypervisor2.stdout not in hostvars['controller-0']['compute0']
+
+    - name: 03 Fetch hypervisor for instance vm
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show vm  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
+      register: hypervisor_vm
+      changed_when: false
+
+    - name: 03 Check if vm was evacuated
+      ansible.builtin.fail:
+        msg: '"vm evacuated, this should not happen"'
+      when: hypervisor_vm.stdout not in hostvars['controller-0']['compute0']
+
+    - name: 03 Fetch hypervisor for instance vm-ha
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show vm-ha  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
+      register: hypervisor_vm_ha
+      changed_when: false
+
+    - name: 03 Check if vm was evacuated
+      ansible.builtin.fail:
+        msg: '"vm not evacuated"'
+      when: hypervisor_vm_ha.stdout in hostvars['controller-0']['compute0']
+
+    - name: 03 Fetch vm-ha status
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show vm-ha |grep vm_state |tail -1  |awk '{print $4}'
+      register: vm_ha_status
+      changed_when: false
+
+    - name: 03 Check vm-ha status
+      ansible.builtin.fail:
+        msg: '"vm-ha should be active"'
+      when: vm_ha_status.stdout != "active"
+
+    - name: 03 Remove vm
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: vm
+
+    - name: 03 Remove vm-ha
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: vm-ha
+
+    - name: 03 Remove tagged image
+      openstack.cloud.image:
+        cloud: default
+        state: absent
+        name: cirros-ha
+
+    - name: 03 Fetch compute service (hypervisor) info from OpenStack
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: nova-compute
+      register: hypervisor_list
+
+    - name: 03 Set fact
+      ansible.builtin.set_fact:
+        hypervisors: "{{ hypervisor_list.compute_services | map(attribute='host') | list | sort }}"
+
+    - name: 03 Wait compute-0 to be up
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: nova-compute
+        host: "{{ compute0 }}"
+      register: compute_0_status
+      until: "'up' in compute_0_status.compute_services | map(attribute='state')"
+      retries: 6
+      delay: 10
+
+    - name: 03 save logs
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/03_tag_image.log
+      changed_when: false

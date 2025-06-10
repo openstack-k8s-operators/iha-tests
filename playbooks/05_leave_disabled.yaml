@@ -1,0 +1,187 @@
+---
+- name: 05 Test Instance HA
+  hosts: controller-0
+  gather_facts: false
+
+  tasks:
+    - name: Reset iha configmap
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+
+    - name: Apply config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+      changed_when: false
+
+    - name: 05 fetch random string
+      ansible.builtin.shell:
+        cmd: cat ~/.ssh/config |grep 'Host compute' |awk '{print $2}' |head -1|cut -d- -f2
+      register: string
+      changed_when: false
+
+    - name: 05 set string as fact
+      ansible.builtin.set_fact:
+        string: "{{ string.stdout }}"
+
+    - name: 05 Set compute-0 name as fact
+      ansible.builtin.set_fact:
+        compute0: "compute-{{ string }}-0.ctlplane.example.com"
+
+    - name: 05 Set compute-1 name as fact
+      ansible.builtin.set_fact:
+        compute1: "compute-{{ string }}-1.ctlplane.example.com"
+
+    - name: 05 Set compute-2 name as fact
+      ansible.builtin.set_fact:
+        compute2: "compute-{{ string }}-2.ctlplane.example.com"
+
+    - name: Set LEAVE_DISABLED
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+      vars:
+        leave_disabled: "true"
+
+    - name: Apply config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+      changed_when: false
+
+    - name: 05 wait iha
+      ansible.builtin.shell: |
+        oc wait deployment/instanceha-0 -n openstack --for condition=Available --timeout=300s
+      changed_when: false
+
+    - name: 05 Create instance c1
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: present
+        availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
+        name: c1
+        image: cirros-0.6.2-iha-x86_64-disk.img
+        timeout: 200
+        flavor: m1.nano
+        security_groups:
+          - ping
+        nics:
+          - net-name: privnet
+
+- name: 05 Crash compute
+  hosts: hypervisor
+  remote_user: zuul
+  become: true
+  gather_facts: false
+  tasks:
+    - name: 05 Shutdown compute
+      community.libvirt.virt:
+        name: cifmw-compute-{{ hostvars['controller-0']['string'] }}-0
+        state: destroyed
+
+- name: 05 Check evacuation
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 02 Fetch HYPERVISOR for instance c1
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show c1  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
+      register: hypervisor2
+      changed_when: false
+      retries: 60
+      delay: 3
+      until: hypervisor2.stdout not in hostvars['controller-0']['compute0']
+
+    - name: 05 Fetch HYPERVISOR2 for instance
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show c1  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
+      register: hypervisor2
+      changed_when: false
+
+    - name: 05 Check if evacuation was successful
+      ansible.builtin.fail:
+        msg: '"Evacuation not successful"'
+      when: hypervisor2.stdout in hostvars['controller-0']['compute0']
+
+    - name: 05 Check compute-0 status
+      ansible.builtin.shell: |
+        openstack --os-cloud default compute service list -f value -c Host -c State |grep "{{ hostvars['controller-0']['compute0'] }}" |awk '{print $2}'
+      register: host_status
+      changed_when: false
+
+    - name: 05 Check if compute-0 is down
+      ansible.builtin.fail:
+        msg: '"Compute-0 is not down"'
+      when: host_status.stdout != "down"
+
+- name: 05 Restart compute
+  hosts: hypervisor
+  remote_user: zuul
+  become: true
+  gather_facts: false
+  tasks:
+    - name: 05 start compute
+      community.libvirt.virt:
+        name: cifmw-compute-{{ hostvars['controller-0']['string'] }}-0
+        state: running
+
+- name: 05 Cleanup
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 05 Remove vm
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: c1
+
+    - name: 05 reenable compute
+      ansible.builtin.shell: |
+        openstack --os-cloud default compute service set --enable --up "{{ hostvars['controller-0']['compute0'] }}" nova-compute
+      changed_when: false
+
+    - name: 05 save logs
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/05_leave_disabled.log
+      changed_when: false
+
+    - name: Reset iha configmap
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+
+    - name: Apply config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+      changed_when: false
+
+    - name: 05 wait iha
+      ansible.builtin.shell: |
+        oc wait deployment/instanceha-0 -n openstack --for condition=Available --timeout=300s
+      changed_when: false
+
+    - name: 05 Fetch compute service (hypervisor) info from OpenStack
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: nova-compute
+      register: hypervisor_list
+
+    - name: 05 Set fact
+      ansible.builtin.set_fact:
+        hypervisors: "{{ hypervisor_list.compute_services | map(attribute='host') | list | sort }}"
+
+    - name: 05 Wait compute-0 to be up
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: nova-compute
+        host: "{{ compute0 }}"
+      register: compute_0_status
+      until: "'up' in compute_0_status.compute_services | map(attribute='state')"
+      retries: 60
+      delay: 10
+
+    - name: 05 save logs
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/05_leave_disabled.log
+      changed_when: false

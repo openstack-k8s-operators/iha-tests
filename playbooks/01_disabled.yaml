@@ -1,0 +1,153 @@
+---
+- name: 01 TEST DISABLED PARAM
+  hosts: controller-0
+  tasks:
+    - name: 01 cleanup iha and start fresh
+      ansible.builtin.shell: |
+        oc delete instanceha instanceha-0
+      changed_when: false
+
+    - name: 01 template config
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+
+    - name: 01 template iha
+      ansible.builtin.template:
+        src: templates/iha.yaml.j2
+        dest: /home/zuul/iha.yaml
+
+    - name: 01 apply config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+        oc apply -f /home/zuul/iha.yaml
+      changed_when: false
+
+    - name: 01 fetch random string
+      ansible.builtin.shell:
+        cmd: "cat ~/.ssh/config |grep 'Host compute' |awk '{print $2}' |head -1|cut -d- -f2"
+      register: string
+      changed_when: false
+
+    - name: 01 set string as fact
+      ansible.builtin.set_fact:
+        string: "{{ string.stdout }}"
+
+    - name: 01 Set compute-0 name as fact
+      ansible.builtin.set_fact:
+        compute0: "compute-{{ string }}-0.ctlplane.example.com"
+
+    - name: 01 Set compute-1 name as fact
+      ansible.builtin.set_fact:
+        compute1: "compute-{{ string }}-1.ctlplane.example.com"
+
+    - name: 01 Set compute-2 name as fact
+      ansible.builtin.set_fact:
+        compute2: "compute-{{ string }}-2.ctlplane.example.com"
+
+    - name: 01 Update DISABLED parameter in instanceha-config configmap
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+      vars:
+        disabled: "true"
+
+    - name: 01 Apply new config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+      changed_when: false
+
+    - name: 01 Create instance vm
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: present
+        availability_zone: "nova:{{ hostvars['controller-0']['compute0'] }}"
+        name: c1
+        image: cirros-0.6.2-iha-x86_64-disk.img
+        timeout: 200
+        flavor: m1.nano
+        security_groups:
+          - ping
+        nics:
+          - net-name: privnet
+
+- name: 01 Crash compute-0
+  hosts: hypervisor
+  remote_user: zuul
+  become: true
+  gather_facts: false
+  tasks:
+    - name: 01 Shutdown compute
+      community.libvirt.virt:
+        name: "cifmw-compute-{{ hostvars['controller-0']['string'] }}-0"
+        state: destroyed
+
+- name: 01 Check evacuation
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 01 Check logs
+      ansible.builtin.shell: |
+        oc logs deploy/instanceha-0
+      register: logs
+      changed_when: false
+      retries: 60
+      delay: 3
+      until: "'INFO InstanceHa DISABLE is true, not evacuating' in logs.stdout"
+
+    - name: 01 Save logs
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/01_disabled.log
+      changed_when: false
+
+    - name: 01 Update DISABLED parameter in instanceha-config configmap
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+
+    - name: 01 Apply new config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+      changed_when: false
+
+    - name: 01 Fetch HYPERVISOR2 for instance
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show c1  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
+      register: hypervisor2
+      changed_when: false
+      retries: 60
+      delay: 3
+      until: "hypervisor2.stdout not in hostvars['controller-0']['compute0']"
+
+    - name: 01 Remove vm
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: c1
+
+    - name: 01 Fetch compute service (hypervisor) info from OpenStack
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: "nova-compute"
+      register: hypervisor_list
+
+    - name: 01 Set hypervisors fact
+      ansible.builtin.set_fact:
+        hypervisors: "{{ hypervisor_list.compute_services | map(attribute='host') | list | sort }}"
+
+    - name: 01 Wait compute-0 to be up
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: "nova-compute"
+        host: "{{ compute0 }}"
+      register: compute_0_status
+      until: "'up' in compute_0_status.compute_services | map(attribute='state')"
+      retries: 6
+      delay: 10
+
+    - name: 01 save logs
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/01_disabled.log
+      changed_when: false

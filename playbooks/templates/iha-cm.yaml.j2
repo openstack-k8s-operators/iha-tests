@@ -1,0 +1,24 @@
+---
+apiVersion: v1
+data:
+  config.yaml: |
+    config:
+      EVACUABLE_TAG: "{{ evacuable_tag | default('trait:CUSTOM_HA') }}"
+      TAGGED_IMAGES: "{{ tagged_images | default('true') }}"
+      TAGGED_FLAVORS: "{{ tagged_flavors | default('true') }}"
+      TAGGED_AGGREGATES: "{{ tagged_aggregates | default('false') }}"
+      SMART_EVACUATION: "{{ smart_evacuation | default('false') }}"
+      DELTA: "{{ delta | default('30') }}"
+      DELAY: "{{ delay | default('90') }}"
+      POLL: "{{ poll | default('45') }}"
+      THRESHOLD: "{{ threshold | default('50') }}"
+      WORKERS: "{{ workers | default('4') }}"
+      RESERVED_HOSTS: "{{ reserved_hosts | default('false') }}"
+      LEAVE_DISABLED: "{{ leave_disabled | default('false') }}"
+      CHECK_KDUMP: "{{ check_kdump | default('false') }}"
+      LOGLEVEL: "{{ loglevel | default('info') }}"
+      DISABLED: "{{ disabled | default('false') }}"
+kind: ConfigMap
+metadata:
+  name: instanceha-0-config
+  namespace: openstack

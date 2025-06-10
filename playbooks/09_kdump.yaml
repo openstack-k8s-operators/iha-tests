@@ -1,0 +1,226 @@
+---
+- name: 99 CHECK KDUMP
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 99 fetch random string
+      ansible.builtin.shell:
+        cmd: cat ~/.ssh/config |grep 'Host compute' |awk '{print $2}' |head -1|cut -d- -f2
+      register: string
+      changed_when: false
+
+    - name: 99 set string as fact
+      ansible.builtin.set_fact:
+        string: "{{ string.stdout }}"
+
+    - name: 99 Set compute-0 name as fact
+      ansible.builtin.set_fact:
+        compute0: "compute-{{ string }}-0.ctlplane.example.com"
+
+    - name: 99 Set compute-1 name as fact
+      ansible.builtin.set_fact:
+        compute1: "compute-{{ string }}-1.ctlplane.example.com"
+
+    - name: 99 Set compute-2 name as fact
+      ansible.builtin.set_fact:
+        compute2: "compute-{{ string }}-2.ctlplane.example.com"
+
+    - name: Set iha config
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+      vars:
+        check_kdump: "true"
+        threshold: "90"
+
+    - name: Apply config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+      changed_when: false
+
+    - name: Set networkattachment
+      ansible.builtin.template:
+        src: templates/iha.yaml.j2
+        dest: /home/zuul/iha.yaml
+      vars:
+        networkattachments: "true"
+
+    - name: 99 Apply the changes
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha.yaml
+      changed_when: false
+
+    - name: 99 Wait iha to be ready
+      ansible.builtin.shell: |
+        oc wait deployment/instanceha-0 -n openstack --for condition=Available --timeout=300s
+      changed_when: false
+
+    - name: 99 Get ip address
+      ansible.builtin.shell: |
+         oc get instanceha -o json |jq -r '.items[0].status.networkAttachments["openstack/internalapi"][0]'
+      register: podip
+      changed_when: false
+
+    - name: 99 Set podip as fact
+      ansible.builtin.set_fact:
+        podip: "{{ podip.stdout }}"
+
+    - name: 99 Fix internalapi net
+      ansible.builtin.shell: |
+        C0N=$(echo "{{ hostvars['controller-0']['compute0'] }}"|cut -d. -f1)
+        C1N=$(echo "{{ hostvars['controller-0']['compute1'] }}"|cut -d. -f1)
+
+        ssh root@$C0N "ifdown vlan20 || true; mv /etc/sysconfig/network-scripts/ifcfg-vlan20 /root/ifcfg-vlan20 || true;
+                       echo 'DEVICE=eth1.20' > /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'MTU=1496' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'ONBOOT=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'HOTPLUG=no' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'NM_CONTROLLED=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'PEERDNS=no' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'VLAN=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'PHYSDEV=eth1' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'BOOTPROTO=static' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'NETMASK=255.255.255.0' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'IPADDR=172.17.0.100' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       ifup eth1.20;
+                       sed -i 's/GRUB_TIMEOUT=0/GRUB_TIMEOUT=60/g' /etc/default/grub ; grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg; reboot"
+        ssh root@$C1N "ifdown vlan20 || true; mv /etc/sysconfig/network-scripts/ifcfg-vlan20 /root/ifcfg-vlan20 || true;
+                       echo 'DEVICE=eth1.20' > /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'MTU=1496' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'ONBOOT=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'HOTPLUG=no' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'NM_CONTROLLED=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'PEERDNS=no' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'VLAN=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'PHYSDEV=eth1' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'BOOTPROTO=static' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'NETMASK=255.255.255.0' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       echo 'IPADDR=172.17.0.101' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
+                       ifup eth1.20;
+                       sed -i 's/GRUB_TIMEOUT=0/GRUB_TIMEOUT=60/g' /etc/default/grub ; grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg; reboot"
+      changed_when: false
+
+    - name: 99 Wait reboot
+      ansible.builtin.pause:
+        minutes: 3
+
+    - name: 99 Tweak kdump.conf on compute-0
+      ansible.builtin.shell: |
+        C0N=$(echo "{{ hostvars['controller-0']['compute0'] }}"|cut -d. -f1)
+        ssh root@$C0N 'dnf install -y fence-agents-kdump || true'
+        ssh root@$C0N "echo '/bin/sleep 180' > /var/crash/sleep.sh; chmod +x /var/crash/sleep.sh;
+                       echo 'auto_reset_crashkernel yes' > /etc/kdump.conf ;
+                       echo 'path /var/crash' >> /etc/kdump.conf ;
+                       echo 'core_collector makedumpfile -l --message-level 7 -d 31' >> /etc/kdump.conf ;
+                       echo 'kdump_post /var/crash/sleep.sh' >> /etc/kdump.conf ;
+                       echo \"fence_kdump_nodes {{ hostvars['controller-0']['podip'] }}\" >> /etc/kdump.conf ;
+                       echo 'fence_kdump_args -p 7410 -f auto -c 0 -i 5' >> /etc/kdump.conf ;
+                       systemctl restart kdump ;
+                       echo 1 > /proc/sys/kernel/sysrq"
+      changed_when: false
+
+    - name: 99 Tweak kdump.conf on compute-1
+      ansible.builtin.shell: |
+        C1N=$(echo "{{ hostvars['controller-0']['compute1'] }}"|cut -d. -f1)
+        ssh root@$C1N 'dnf install -y fence-agents-kdump || true'
+        ssh root@$C1N "echo '/bin/sleep 120' > /var/crash/sleep.sh; chmod +x /var/crash/sleep.sh;
+                       echo 'auto_reset_crashkernel yes' > /etc/kdump.conf ;
+                       echo 'path /var/crash' >> /etc/kdump.conf ;
+                       echo 'core_collector makedumpfile -l --message-level 7 -d 31' >> /etc/kdump.conf ;
+                       echo 'kdump_post /var/crash/sleep.sh' >> /etc/kdump.conf ;
+                       echo \"fence_kdump_nodes {{ hostvars['controller-0']['podip'] }}\" >> /etc/kdump.conf ;
+                       echo 'fence_kdump_args -p 7410 -f auto -c 0 -i 5' >> /etc/kdump.conf ;
+                       systemctl restart kdump ;
+                       echo 1 > /proc/sys/kernel/sysrq"
+      changed_when: false
+
+    - name: 99 Create instance c1
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: present
+        availability_zone: "nova:{{ hostvars['controller-0']['compute0'] }}"
+        name: c1
+        image: cirros-0.6.2-iha-x86_64-disk.img
+        timeout: 200
+        flavor: m1.nano
+        security_groups:
+          - ping
+        nics:
+          - net-name: privnet
+
+- name: 99 Crash compute
+  hosts: hypervisor
+  remote_user: zuul
+  become: true
+  gather_facts: false
+  tasks:
+    - name: 99 Crash compute-0
+      ansible.builtin.shell: |
+        virsh send-key $(virsh list |grep compute |awk '{print $2}' |grep '\-0$') KEY_LEFTALT KEY_SYSRQ KEY_C
+      changed_when: false
+
+    - name: 99 Wait evacuation
+      ansible.builtin.pause:
+        minutes: 8
+
+- name: 99 Check evacuation
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 99 Fetch HYPERVISOR2 for instance c1
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show c1  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
+      register: hypervisor3
+      changed_when: false
+
+    - name: 99 Check if vm c1 was evacuated
+      ansible.builtin.fail:
+        msg: "vm c1 not evacuated, this should not happen"
+      when: hypervisor3.stdout in hostvars['controller-0']['compute0']
+
+    - name: 99 check logs and see if we received the kdump msgs compute0
+      ansible.builtin.shell: |
+        oc logs $(oc get pods |grep instanceha| awk '{print $1}') |grep "{{ hostvars['controller-0']['compute0'] }}" |grep 'are kdumping'
+      register: grep
+      changed_when: false
+
+    - name: 99 fail if we did not see any kdump msg
+      ansible.builtin.fail:
+        msg: "KDUMP msg not received"
+      when: grep.rc != 0
+
+    - name: 99 save logs
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/09_kdump.log
+      changed_when: false
+
+    - name: 99 Remove vm
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: c1
+
+    - name: 99 Cleanup kdump.conf on compute-0
+      ansible.builtin.shell: |
+        C0N=$(echo "{{ hostvars['controller-0']['compute0'] }}"|cut -d. -f1)
+        ssh root@$C0N "rm -rf /etc/kdump.conf; dnf reinstall kexec-tools -y; systemctl restart kdump"
+      changed_when: false
+
+    - name: 99 Cleanup kdump.conf on compute-1
+      ansible.builtin.shell: |
+        C1N=$(echo "{{ hostvars['controller-0']['compute1'] }}"|cut -d. -f1)
+        ssh root@$C1N "rm -rf /etc/kdump.conf; dnf reinstall kexec-tools -y; systemctl restart kdump"
+      changed_when: false
+
+    - name: Reset iha configmap
+      ansible.builtin.template:
+        src: templates/iha-cm.yaml.j2
+        dest: /home/zuul/iha-cm.yaml
+
+    - name: Apply config
+      ansible.builtin.shell: |
+        oc apply -f /home/zuul/iha-cm.yaml
+      changed_when: false

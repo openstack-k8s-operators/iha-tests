@@ -1,0 +1,10 @@
+apiVersion: instanceha.openstack.org/v1beta1
+kind: InstanceHa
+metadata:
+  name: instanceha-0
+spec:
+  caBundleSecretName: combined-ca-bundle
+  instanceHaConfigMap: instanceha-0-config
+{% if networkattachments is defined %}
+  networkAttachments: ['internalapi']
+{% endif %}
