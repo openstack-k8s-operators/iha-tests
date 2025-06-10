@@ -140,3 +140,9 @@
         vcpus: 1
         disk: 1
         ephemeral: 0
+
+    - name: Create iha-tests-results dir
+      ansible.builtin.file:
+        path: /home/zuul/iha-tests-results
+        state: directory
+        mode: '0755'

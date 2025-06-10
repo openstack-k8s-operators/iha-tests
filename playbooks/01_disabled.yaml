@@ -1,7 +1,16 @@
 ---
 - name: 01 TEST DISABLED PARAM
   hosts: controller-0
+  vars:
+    name: "01_disabled"
   tasks:
+    - name: 01 Create results file (failure)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: false
+
     - name: 01 cleanup iha and start fresh
       ansible.builtin.shell: |
         oc delete instanceha instanceha-0
@@ -148,6 +157,13 @@
       retries: 6
       delay: 10
 
-    - name: 01 save logs
+    - name: 01 Save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/01_disabled.log
       changed_when: false
+
+    - name: 01 Create results file (success)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: true

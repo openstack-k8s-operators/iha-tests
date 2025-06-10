@@ -1,0 +1,8 @@
+{% if success %}
+    <testcase classname="{{ name }}" name="{{ name }}">
+    </testcase>
+{% else %}
+    <testcase classname="{{ name }}" name="{{ name }}">
+        <failure type="failure"> tests failed </failure>
+    </testcase>
+{% endif %}
