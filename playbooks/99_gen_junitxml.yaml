@@ -1,0 +1,15 @@
+---
+- name: 99 Generate junitxml file for test results
+  hosts: controller-0
+  gather_facts: false
+  vars:
+    results_dir: "/home/zuul/iha-tests-results"
+  tasks:
+    - name: Generate junit xml file for IHA tests from single files
+      ansible.builtin.shell: |
+        pushd {{ results_dir }}
+        echo "<testsuite tests=\"$(ls {{ results_dir }}| wc -l)\">" > junit_iha.xml
+        cat /home/zuul/iha-tests-results/* >> junit_iha.xml
+        echo "</testsuite>" >> junit_iha.xml
+        popd
+      changed_when: false

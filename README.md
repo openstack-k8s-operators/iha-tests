@@ -67,3 +67,5 @@ And last task instead sets the test to have succeeded if everything went fine:
       vars:
         success: true
 ~~~
+
+The 99_gen_junitxml.yaml playbook will generate a junit.xml file out of them.
