@@ -4,16 +4,7 @@
   remote_user: zuul
   become: true
   gather_facts: false
-  vars:
-    name: "07_smartevac"
   tasks:
-    - name: 07 Create results file (failure)
-      ansible.builtin.template:
-        src: templates/iha-tests-results.xml.j2
-        dest: /home/zuul/iha-tests-results/{{ name }}.xml
-      vars:
-        success: false
-
     - name: 07 List all VMs
       community.libvirt.virt:
         command: list_vms
@@ -72,8 +63,16 @@
     ansible_ssh_private_key_file: /home/zuul/.ssh/cifmw_reproducer_key
     kubeadmin_user: kubeadmin
     api_url: https://api.ocp.openstack.lab:6443
+    name: "07_smartevac"
 
   tasks:
+    - name: 07 Create results file (failure)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: false
+
     - name: 07 Retrieve kubeadmin password using cat command
       ansible.builtin.command: cat /home/zuul/.kube/kubeadmin-password
       register: kubeadmin_password_command
