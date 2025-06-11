@@ -96,6 +96,8 @@
 - name: 01 Check evacuation
   hosts: controller-0
   gather_facts: false
+  vars:
+    name: "01_disabled"
   tasks:
     - name: 01 Check logs
       ansible.builtin.shell: |

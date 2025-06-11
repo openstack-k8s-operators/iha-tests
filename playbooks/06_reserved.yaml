@@ -2,8 +2,16 @@
 - name: 06 Test Instance HA
   hosts: controller-0
   gather_facts: false
-
+  vars:
+    name: "06_reserved"
   tasks:
+    - name: 06 Create results file (failure)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: false
+
     - name: Reset iha configmap
       ansible.builtin.template:
         src: templates/iha-cm.yaml.j2
@@ -123,6 +131,8 @@
 - name: 06 Cleanup
   hosts: controller-0
   gather_facts: false
+  vars:
+    name: "06_reserved"
   tasks:
     - name: 06 Remove vm
       openstack.cloud.server:
@@ -155,6 +165,13 @@
     - name: 06 save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/06_reserved.log
       changed_when: false
+
+    - name: 06 Create results file (success)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: true
 
     - name: Reset iha configmap
       ansible.builtin.template:

@@ -2,7 +2,16 @@
 - name: 03 TEST TAG IMAGE
   hosts: controller-0
   gather_facts: false
+  vars:
+    name: "03_tag_image"
   tasks:
+    - name: 03 Create results file (failure)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: false
+
     - name: Reset iha configmap
       ansible.builtin.template:
         src: templates/iha-cm.yaml.j2
@@ -102,6 +111,8 @@
 - name: 03 Check status
   hosts: controller-0
   gather_facts: false
+  vars:
+    name: "03_tag_image"
   tasks:
     - name: 03 Fetch HYPERVISOR for instance vm-ha
       ansible.builtin.shell: |
@@ -190,3 +201,10 @@
     - name: 03 save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/03_tag_image.log
       changed_when: false
+
+    - name: 03 Create results file (success)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: true

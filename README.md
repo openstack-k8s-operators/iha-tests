@@ -1,7 +1,7 @@
 Playbooks meant to run via test-operator.
 
-Example AnsibleTest cr:
 
+Example AnsibleTest cr:
 
 ~~~
 ---
@@ -25,4 +25,45 @@ spec:
     ---
     # example
     somevar: somevalue
+~~~
+
+Each test should create a results file under /home/zuul/iha-tests-results/ named after the respective playbook, for example "01_disabled.xml".
+
+~~~
+{% if success %}
+    <testcase classname="{{ name }}" name="{{ name }}">
+    </testcase>
+{% else %}
+    <testcase classname="{{ name }}" name="{{ name }}">
+        <failure type="failure"> tests failed </failure>
+    </testcase>
+{% endif %}
+~~~
+
+Right now we use the following as first task to pre-set the test to have failed:
+
+~~~
+---
+- name: 01 TEST DISABLED PARAM
+  hosts: controller-0
+  vars:
+    name: "01_disabled"
+  tasks:
+    - name: 01 Create results file (failure)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: false
+~~~
+
+And last task instead sets the test to have succeeded if everything went fine:
+
+~~~
+    - name: 01 Create results file (success)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: true
 ~~~

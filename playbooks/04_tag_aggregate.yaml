@@ -2,7 +2,16 @@
 - name: 04 Test Instance HA
   hosts: controller-0
   gather_facts: false
+  vars:
+    name: "04_tag_aggregate"
   tasks:
+    - name: 04 Create results file (failure)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: false
+
     - name: Reset iha configmap
       ansible.builtin.template:
         src: templates/iha-cm.yaml.j2
@@ -188,6 +197,8 @@
 - name: 04 Cleanup
   hosts: controller-0
   gather_facts: false
+  vars:
+    name: "04_tag_aggregate"
   tasks:
     - name: 04 Remove vm
       openstack.cloud.server:
@@ -254,3 +265,10 @@
     - name: 04 save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/04_tag_aggregate.log
       changed_when: false
+
+    - name: 04 Create results file (success)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: true

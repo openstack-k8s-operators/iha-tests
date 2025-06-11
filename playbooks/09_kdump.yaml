@@ -2,7 +2,16 @@
 - name: 99 CHECK KDUMP
   hosts: controller-0
   gather_facts: false
+  vars:
+    name: "09_kdump"
   tasks:
+    - name: 09 Create results file (failure)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: false
+
     - name: 99 fetch random string
       ansible.builtin.shell:
         cmd: cat ~/.ssh/config |grep 'Host compute' |awk '{print $2}' |head -1|cut -d- -f2
@@ -168,6 +177,8 @@
 - name: 99 Check evacuation
   hosts: controller-0
   gather_facts: false
+  vars:
+    name: "09_kdump"
   tasks:
     - name: 99 Fetch HYPERVISOR2 for instance c1
       ansible.builtin.shell: |
@@ -224,3 +235,10 @@
       ansible.builtin.shell: |
         oc apply -f /home/zuul/iha-cm.yaml
       changed_when: false
+
+    - name: 09 Create results file (success)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: true

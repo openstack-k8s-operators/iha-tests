@@ -4,8 +4,16 @@
   remote_user: zuul
   become: true
   gather_facts: false
-
+  vars:
+    name: "07_smartevac"
   tasks:
+    - name: 07 Create results file (failure)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: false
+
     - name: 07 List all VMs
       community.libvirt.virt:
         command: list_vms
@@ -434,7 +442,8 @@
 - name: 07 Check vm0 evacuation
   hosts: controller-0
   gather_facts: false
-
+  vars:
+    name: "07_smartevac"
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact
       ansible.builtin.set_fact:
@@ -503,6 +512,13 @@
     - name: 07 save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/07_smartevac.log
       changed_when: false
+
+    - name: 07 Create results file (success)
+      ansible.builtin.template:
+        src: templates/iha-tests-results.xml.j2
+        dest: /home/zuul/iha-tests-results/{{ name }}.xml
+      vars:
+        success: true
 
 - name: 07 Disable smart evacuation
   hosts: controller-0
