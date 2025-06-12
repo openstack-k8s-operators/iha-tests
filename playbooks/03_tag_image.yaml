@@ -199,7 +199,7 @@
       delay: 10
 
     - name: 03 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/03_tag_image.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/03_tag_image.log
       changed_when: false
 
     - name: 03 Create results file (success)

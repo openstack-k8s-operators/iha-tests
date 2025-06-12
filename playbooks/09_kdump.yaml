@@ -203,7 +203,7 @@
       when: grep.rc != 0
 
     - name: 99 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/09_kdump.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/09_kdump.log
       changed_when: false
 
     - name: 99 Remove vm

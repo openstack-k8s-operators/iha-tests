@@ -109,7 +109,7 @@
       until: "'INFO InstanceHa DISABLE is true, not evacuating' in logs.stdout"
 
     - name: 01 Save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/01_disabled.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/01_disabled.log
       changed_when: false
 
     - name: 01 Update DISABLED parameter in instanceha-config configmap
@@ -160,7 +160,7 @@
       delay: 10
 
     - name: 01 Save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/01_disabled.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/01_disabled.log
       changed_when: false
 
     - name: 01 Create results file (success)

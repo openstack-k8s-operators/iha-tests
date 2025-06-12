@@ -227,7 +227,7 @@
       delay: 10
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/08_selective_tags.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/08_selective_tags.log
       changed_when: false
 
     # DISABLE FLAVOR
@@ -375,7 +375,7 @@
       delay: 10
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/08_selective_tags.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/08_selective_tags.log
       changed_when: false
 
     - name: Reset iha configmap
@@ -535,7 +535,7 @@
       delay: 10
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/08_selective_tags.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/08_selective_tags.log
       changed_when: false
 
     - name: Reset iha configmap

@@ -198,7 +198,7 @@
       delay: 10
 
     - name: 02 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/02_tag_flavor.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/02_tag_flavor.log
       changed_when: false
 
     - name: 02 Create results file (success)
