@@ -92,7 +92,7 @@
   hosts: controller-0
   gather_facts: false
   tasks:
-    - name: 02 Fetch HYPERVISOR for instance c1
+    - name: 05 Fetch HYPERVISOR for instance c1
       ansible.builtin.shell: |
         openstack --os-cloud default server show c1  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
       register: hypervisor2
