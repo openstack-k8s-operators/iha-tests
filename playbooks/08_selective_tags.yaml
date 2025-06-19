@@ -18,7 +18,7 @@
   hosts: controller-0
   gather_facts: false
   vars:
-    name: "08_selective_tags"
+    name: "08-test-disable-flavor-or-image-tagging"
   tasks:
     - name: 08 Create results file (failure)
       ansible.builtin.template:
@@ -242,7 +242,7 @@
       delay: 10
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/08_selective_tags.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     # DISABLE FLAVOR
@@ -390,7 +390,7 @@
       delay: 10
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/08_selective_tags.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: Reset iha configmap
@@ -463,7 +463,7 @@
   hosts: controller-0
   gather_facts: false
   vars:
-    name: "08_selective_tags"
+    name: "08-test-disable-flavor-or-image-tagging"
   tasks:
     - name: 08 Fetch HYPERVISOR for instance vm-flavorha
       ansible.builtin.shell: |
@@ -550,7 +550,7 @@
       delay: 10
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/08_selective_tags.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: Reset iha configmap

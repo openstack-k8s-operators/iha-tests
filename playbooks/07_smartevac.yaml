@@ -78,7 +78,7 @@
     ansible_ssh_private_key_file: /home/zuul/.ssh/cifmw_reproducer_key
     kubeadmin_user: kubeadmin
     api_url: https://api.ocp.openstack.lab:6443
-    name: "07_smartevac"
+    name: "07-test-smart-evacuation"
 
   tasks:
     - name: 07 Create results file (failure)
@@ -457,7 +457,7 @@
   hosts: controller-0
   gather_facts: false
   vars:
-    name: "07_smartevac"
+    name: "07-test-smart-evacuation"
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact
       ansible.builtin.set_fact:
@@ -524,7 +524,7 @@
       until: "'Failed evacuating' in instanceha_logs.log"
 
     - name: 07 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/07_smartevac.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: 07 Create results file (success)

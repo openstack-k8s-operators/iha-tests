@@ -18,7 +18,7 @@
   hosts: controller-0
   gather_facts: false
   vars:
-    name: "09_kdump"
+    name: "09-test-kdump-before-evacuation"
   tasks:
     - name: 09 Create results file (failure)
       ansible.builtin.template:
@@ -193,7 +193,7 @@
   hosts: controller-0
   gather_facts: false
   vars:
-    name: "09_kdump"
+    name: "09-test-kdump-before-evacuation"
   tasks:
     - name: 99 Fetch HYPERVISOR2 for instance c1
       ansible.builtin.shell: |
@@ -218,7 +218,7 @@
       when: grep.rc != 0
 
     - name: 99 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/09_kdump.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: 99 Remove vm

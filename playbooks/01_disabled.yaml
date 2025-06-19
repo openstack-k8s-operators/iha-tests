@@ -17,7 +17,7 @@
 - name: 01 TEST DISABLED PARAM
   hosts: controller-0
   vars:
-    name: "01_disabled"
+    name: "01-test-iha-disabled"
   tasks:
     - name: 01 Create results file (failure)
       ansible.builtin.template:
@@ -112,7 +112,7 @@
   hosts: controller-0
   gather_facts: false
   vars:
-    name: "01_disabled"
+    name: "01-test-iha-disabled"
   tasks:
     - name: 01 Check logs
       ansible.builtin.shell: |
@@ -124,7 +124,7 @@
       until: "'INFO InstanceHa DISABLE is true, not evacuating' in logs.stdout"
 
     - name: 01 Save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/01_disabled.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: 01 Update DISABLED parameter in instanceha-config configmap
@@ -175,7 +175,7 @@
       delay: 10
 
     - name: 01 Save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/01_disabled.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: 01 Create results file (success)

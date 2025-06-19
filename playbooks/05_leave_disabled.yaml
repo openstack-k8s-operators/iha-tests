@@ -18,7 +18,7 @@
   hosts: controller-0
   gather_facts: false
   vars:
-    name: "05_leave_disabled"
+    name: "05-test-compute-disabled-after-evacuation"
   tasks:
     - name: 05 Create results file (failure)
       ansible.builtin.template:
@@ -153,7 +153,7 @@
   hosts: controller-0
   gather_facts: false
   vars:
-    name: "05_leave_disabled"
+    name: "05-test-compute-disabled-after-evacuation"
   tasks:
     - name: 05 Remove vm
       openstack.cloud.server:
@@ -169,7 +169,7 @@
       changed_when: false
 
     - name: 05 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/05_leave_disabled.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: Reset iha configmap
@@ -208,7 +208,7 @@
       delay: 10
 
     - name: 05 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/05_leave_disabled.log
+      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: 05 Create results file (success)
