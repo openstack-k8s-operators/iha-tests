@@ -187,7 +187,7 @@
 
     - name: 09 Wait evacuation
       ansible.builtin.pause:
-        minutes: 8
+        minutes: 12
 
 - name: 09 Check evacuation
   hosts: controller-0
