@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-- name: 99 CHECK KDUMP
+- name: 09 CHECK KDUMP
   hosts: controller-0
   gather_facts: false
   vars:
@@ -27,29 +27,29 @@
       vars:
         success: false
 
-    - name: 99 fetch random string
+    - name: 09 fetch random string
       ansible.builtin.shell:
         cmd: cat ~/.ssh/config |grep 'Host compute' |awk '{print $2}' |head -1|cut -d- -f2
       register: string
       changed_when: false
 
-    - name: 99 set string as fact
+    - name: 09 set string as fact
       ansible.builtin.set_fact:
         string: "{{ string.stdout }}"
 
-    - name: 99 Set compute-0 name as fact
+    - name: 09 Set compute-0 name as fact
       ansible.builtin.set_fact:
         compute0: "compute-{{ string }}-0.ctlplane.example.com"
 
-    - name: 99 Set compute-1 name as fact
+    - name: 09 Set compute-1 name as fact
       ansible.builtin.set_fact:
         compute1: "compute-{{ string }}-1.ctlplane.example.com"
 
-    - name: 99 Set compute-2 name as fact
+    - name: 09 Set compute-2 name as fact
       ansible.builtin.set_fact:
         compute2: "compute-{{ string }}-2.ctlplane.example.com"
 
-    - name: Set iha config
+    - name: 09 Set iha config
       ansible.builtin.template:
         src: templates/iha-cm.yaml.j2
         dest: /home/zuul/iha-cm.yaml
@@ -57,39 +57,39 @@
         check_kdump: "true"
         threshold: "90"
 
-    - name: Apply config
+    - name: 09 Apply config
       ansible.builtin.shell: |
         oc apply -f /home/zuul/iha-cm.yaml
       changed_when: false
 
-    - name: Set networkattachment
+    - name: 09 Set networkattachment
       ansible.builtin.template:
         src: templates/iha.yaml.j2
         dest: /home/zuul/iha.yaml
       vars:
         networkattachments: "true"
 
-    - name: 99 Apply the changes
+    - name: 09 Apply the changes
       ansible.builtin.shell: |
         oc apply -f /home/zuul/iha.yaml
       changed_when: false
 
-    - name: 99 Wait iha to be ready
+    - name: 09 Wait iha to be ready
       ansible.builtin.shell: |
         oc wait deployment/instanceha-0 -n openstack --for condition=Available --timeout=300s
       changed_when: false
 
-    - name: 99 Get ip address
+    - name: 09 Get ip address
       ansible.builtin.shell: |
          oc get instanceha -o json |jq -r '.items[0].status.networkAttachments["openstack/internalapi"][0]'
       register: podip
       changed_when: false
 
-    - name: 99 Set podip as fact
+    - name: 09 Set podip as fact
       ansible.builtin.set_fact:
         podip: "{{ podip.stdout }}"
 
-    - name: 99 Fix internalapi net
+    - name: 09 Fix internalapi net
       ansible.builtin.shell: |
         C0N=$(echo "{{ hostvars['controller-0']['compute0'] }}"|cut -d. -f1)
         C1N=$(echo "{{ hostvars['controller-0']['compute1'] }}"|cut -d. -f1)
@@ -124,11 +124,11 @@
                        sed -i 's/GRUB_TIMEOUT=0/GRUB_TIMEOUT=60/g' /etc/default/grub ; grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg; reboot"
       changed_when: false
 
-    - name: 99 Wait reboot
+    - name: 09 Wait reboot
       ansible.builtin.pause:
         minutes: 3
 
-    - name: 99 Tweak kdump.conf on compute-0
+    - name: 09 Tweak kdump.conf on compute-0
       ansible.builtin.shell: |
         C0N=$(echo "{{ hostvars['controller-0']['compute0'] }}"|cut -d. -f1)
         ssh root@$C0N 'dnf install -y fence-agents-kdump || true'
@@ -143,7 +143,7 @@
                        echo 1 > /proc/sys/kernel/sysrq"
       changed_when: false
 
-    - name: 99 Tweak kdump.conf on compute-1
+    - name: 09 Tweak kdump.conf on compute-1
       ansible.builtin.shell: |
         C1N=$(echo "{{ hostvars['controller-0']['compute1'] }}"|cut -d. -f1)
         ssh root@$C1N 'dnf install -y fence-agents-kdump || true'
@@ -158,7 +158,7 @@
                        echo 1 > /proc/sys/kernel/sysrq"
       changed_when: false
 
-    - name: 99 Create instance c1
+    - name: 09 Create instance c1
       openstack.cloud.server:
         cloud: default
         auth:
@@ -174,54 +174,54 @@
         nics:
           - net-name: privnet
 
-- name: 99 Crash compute
+- name: 09 Crash compute
   hosts: hypervisor
   remote_user: zuul
   become: true
   gather_facts: false
   tasks:
-    - name: 99 Crash compute-0
+    - name: 09 Crash compute-0
       ansible.builtin.shell: |
         virsh send-key $(virsh list |grep compute |awk '{print $2}' |grep '\-0$') KEY_LEFTALT KEY_SYSRQ KEY_C
       changed_when: false
 
-    - name: 99 Wait evacuation
+    - name: 09 Wait evacuation
       ansible.builtin.pause:
         minutes: 8
 
-- name: 99 Check evacuation
+- name: 09 Check evacuation
   hosts: controller-0
   gather_facts: false
   vars:
     name: "09-test-kdump-before-evacuation"
   tasks:
-    - name: 99 Fetch HYPERVISOR2 for instance c1
+    - name: 09 Fetch HYPERVISOR2 for instance c1
       ansible.builtin.shell: |
         openstack --os-cloud default server show c1  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
       register: hypervisor3
       changed_when: false
 
-    - name: 99 Check if vm c1 was evacuated
+    - name: 09 Check if vm c1 was evacuated
       ansible.builtin.fail:
         msg: "vm c1 not evacuated, this should not happen"
       when: hypervisor3.stdout in hostvars['controller-0']['compute0']
 
-    - name: 99 check logs and see if we received the kdump msgs compute0
+    - name: 09 check logs and see if we received the kdump msgs compute0
       ansible.builtin.shell: |
         oc logs $(oc get pods |grep instanceha| awk '{print $1}') |grep "{{ hostvars['controller-0']['compute0'] }}" |grep 'are kdumping'
       register: grep
       changed_when: false
 
-    - name: 99 fail if we did not see any kdump msg
+    - name: 09 fail if we did not see any kdump msg
       ansible.builtin.fail:
         msg: "KDUMP msg not received"
       when: grep.rc != 0
 
-    - name: 99 save logs
+    - name: 09 save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
-    - name: 99 Remove vm
+    - name: 09 Remove vm
       openstack.cloud.server:
         cloud: default
         auth:
@@ -229,24 +229,44 @@
         state: absent
         name: c1
 
-    - name: 99 Cleanup kdump.conf on compute-0
+    - name: 09 Wait compute-0 to be up
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: "nova-compute"
+        host: "{{ compute0 }}"
+      register: compute_0_status
+      until: "'up' in compute_0_status.compute_services | map(attribute='state')"
+      retries: 20
+      delay: 10
+
+    - name: 09 Wait compute-1 to be up
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: "nova-compute"
+        host: "{{ compute1 }}"
+      register: compute_1_status
+      until: "'up' in compute_1_status.compute_services | map(attribute='state')"
+      retries: 20
+      delay: 10
+
+    - name: 09 Cleanup kdump.conf on compute-0
       ansible.builtin.shell: |
         C0N=$(echo "{{ hostvars['controller-0']['compute0'] }}"|cut -d. -f1)
         ssh root@$C0N "rm -rf /etc/kdump.conf; dnf reinstall kexec-tools -y; systemctl restart kdump"
       changed_when: false
 
-    - name: 99 Cleanup kdump.conf on compute-1
+    - name: 09 Cleanup kdump.conf on compute-1
       ansible.builtin.shell: |
         C1N=$(echo "{{ hostvars['controller-0']['compute1'] }}"|cut -d. -f1)
         ssh root@$C1N "rm -rf /etc/kdump.conf; dnf reinstall kexec-tools -y; systemctl restart kdump"
       changed_when: false
 
-    - name: Reset iha configmap
+    - name: 09 Reset iha configmap
       ansible.builtin.template:
         src: templates/iha-cm.yaml.j2
         dest: /home/zuul/iha-cm.yaml
 
-    - name: Apply config
+    - name: 09 Apply config
       ansible.builtin.shell: |
         oc apply -f /home/zuul/iha-cm.yaml
       changed_when: false
