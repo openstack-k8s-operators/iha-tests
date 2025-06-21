@@ -23,8 +23,8 @@ spec:
     hypervisor ansible_host=192.168.111.1 ansible_user=zuul ansible_ssh_private_key_file=~/test_keypair.key ansible_host_key_checking=false
   ansibleVarFiles: |
     ---
-    # example
-    somevar: somevalue
+    # evacuation delay
+    delay: 0
 ~~~
 
 Each test should create a results file under /home/zuul/iha-tests-results/ named after the respective playbook, for example "01_disabled.xml".
