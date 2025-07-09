@@ -19,6 +19,8 @@
   gather_facts: false
   vars:
     name: "08-test-disable-flavor-or-image-tagging"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 08 Create results file (failure)
       ansible.builtin.template:
@@ -59,7 +61,7 @@
       openstack.cloud.compute_flavor:
         cloud: default
         state: present
-        name: m1.nanoha
+        name: "m1.nanoha.{{ iha_suffix }}"
         ram: 128
         vcpus: 1
         disk: 1
@@ -68,7 +70,7 @@
 
     - name: 08 set flavor trait
       ansible.builtin.command:
-        cmd: openstack --os-cloud default flavor set --property trait:CUSTOM_HA=true m1.nanoha
+        cmd: openstack --os-cloud default flavor set --property trait:CUSTOM_HA=true "m1.nanoha.{{ iha_suffix }}"
       changed_when: false
 
     - name: 08 set resource provider trait
@@ -83,17 +85,17 @@
     - name: 08 Create tagged image
       openstack.cloud.image:
         cloud: default
-        name: cirros-ha
+        name: "cirros-ha.{{ iha_suffix }}"
         container_format: bare
         disk_format: qcow2
         state: present
-        filename: /home/zuul/cirros-0.6.2-iha-x86_64-disk.img
+        filename: "/home/zuul/cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         min_disk: 0
         min_ram: 0
 
     - name: 08 set image trait
       ansible.builtin.command:
-        cmd: openstack --os-cloud default image set --tag trait:CUSTOM_HA cirros-ha
+        cmd: openstack --os-cloud default image set --tag trait:CUSTOM_HA "cirros-ha.{{ iha_suffix }}"
       changed_when: false
 
     - name: 08 set resource provider trait
@@ -113,13 +115,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
         name: vm-flavorha
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nanoha
+        flavor: "m1.nanoha.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
     - name: 08 Create instance vm-ha
       openstack.cloud.server:
@@ -129,13 +131,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
         name: vm-imageha
-        image: cirros-ha
+        image: "cirros-ha.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 08 Crash compute-0
   hosts: hypervisor
@@ -153,6 +155,8 @@
   gather_facts: false
   vars:
     name: "08-test-disable-flavor-or-image-tagging"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 08 Fetch HYPERVISOR for instance vm-imageha
       ansible.builtin.shell: |
@@ -268,13 +272,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
         name: vm-flavorha
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nanoha
+        flavor: "m1.nanoha.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
     - name: 08 Create instance vm-imageha
       openstack.cloud.server:
@@ -284,13 +288,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
         name: vm-imageha
-        image: cirros-ha
+        image: "cirros-ha.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 08 Crash compute-0
   hosts: hypervisor
@@ -308,6 +312,8 @@
   gather_facts: false
   vars:
     name: "08-test-disable-flavor-or-image-tagging"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 08 Fetch HYPERVISOR for instance vm-imageha
       ansible.builtin.shell: |
@@ -428,13 +434,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
         name: vm-flavorha
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nanoha
+        flavor: "m1.nanoha.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
     - name: 08 Create instance vm-ha
       openstack.cloud.server:
@@ -444,13 +450,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
         name: vm-imageha
-        image: cirros-ha
+        image: "cirros-ha.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 08 Crash compute-0
   hosts: hypervisor
@@ -468,6 +474,8 @@
   gather_facts: false
   vars:
     name: "08-test-disable-flavor-or-image-tagging"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 08 Fetch HYPERVISOR for instance vm-flavorha
       ansible.builtin.shell: |
@@ -571,13 +579,13 @@
       openstack.cloud.image:
         cloud: default
         state: absent
-        name: cirros-ha
+        name: "cirros-ha.{{ iha_suffix }}"
 
     - name: 08 Remove tagged flavor
       openstack.cloud.compute_flavor:
         cloud: default
         state: absent
-        name: m1.nanoha
+        name: "m1.nanoha.{{ iha_suffix }}"
 
     - name: 08 Create results file (success)
       ansible.builtin.template:

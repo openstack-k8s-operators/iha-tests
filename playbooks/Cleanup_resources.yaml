@@ -1,0 +1,55 @@
+# All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+- name: Cleanup  Openstack resources created by IHA tests
+  hosts: controller-0
+  gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
+  tasks:
+    - name: Remove FIPs
+      debug:
+        msg: "TODO"
+
+    - name: Remove iha instances
+      debug:
+        msg: "TODO"
+
+    - name: Unset iha routers
+      debug:
+        msg: "TODO"
+
+    - name: Remove routers
+      debug:
+        msg: "TODO"
+
+    - name: Remove iha private subnet
+      debug:
+        msg: "TODO"
+
+    - name: remove iha private network
+      debug:
+        msg: "TODO"
+
+    - name: Remove iha images
+      debug:
+        msg: "TODO"
+
+    - name: Remove iha flavors
+      debug:
+        msg: "TODO"
+
+    - name: Remove image file
+      debug:
+        msg: "TODO"

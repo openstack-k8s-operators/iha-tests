@@ -19,6 +19,8 @@
   gather_facts: false
   vars:
     name: "06-test-reserve-capacity"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 06 Create results file (failure)
       ansible.builtin.template:
@@ -89,13 +91,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
         name: c1
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 06 Crash compute
   hosts: hypervisor
@@ -111,6 +113,8 @@
 - name: 06 Check evacuation
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 06 Fetch HYPERVISOR for instance c1
       ansible.builtin.shell: |
@@ -148,6 +152,8 @@
   gather_facts: false
   vars:
     name: "06-test-reserve-capacity"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 06 Remove vm
       openstack.cloud.server:

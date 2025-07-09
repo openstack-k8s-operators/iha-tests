@@ -19,6 +19,8 @@
   gather_facts: false
   vars:
     name: "04-test-tagged-aggregates-evacuation"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 04 Create results file (failure)
       ansible.builtin.template:
@@ -93,13 +95,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
         name: vm-ha
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
     - name: 04 Create instance vm
       openstack.cloud.server:
@@ -109,13 +111,13 @@
         state: present
         availability_zone: nova:{{ hostvars['controller-0']['compute1'] }}
         name: vm
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 04 Crash compute-0
   hosts: hypervisor
@@ -131,6 +133,8 @@
 - name: 04 Check vm-ha status
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 04 Fetch HYPERVISOR for instance vm-ha
       ansible.builtin.shell: |
@@ -177,6 +181,8 @@
 - name: 04 Check vm status
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 04 Check logs
       ansible.builtin.shell: |
@@ -214,6 +220,8 @@
   gather_facts: false
   vars:
     name: "04-test-tagged-aggregates-evacuation"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 04 Remove vm
       openstack.cloud.server:

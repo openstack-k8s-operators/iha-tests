@@ -19,6 +19,8 @@
   gather_facts: false
   vars:
     name: "09-test-kdump-before-evacuation"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 09 Create results file (failure)
       ansible.builtin.template:
@@ -166,13 +168,13 @@
         state: present
         availability_zone: "nova:{{ hostvars['controller-0']['compute0'] }}"
         name: c1
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 09 Crash compute
   hosts: hypervisor
@@ -194,6 +196,8 @@
   gather_facts: false
   vars:
     name: "09-test-kdump-before-evacuation"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 09 Fetch HYPERVISOR2 for instance c1
       ansible.builtin.shell: |
