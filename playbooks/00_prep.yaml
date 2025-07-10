@@ -18,6 +18,16 @@
   hosts: controller-0
   gather_facts: false
   tasks:
+    - name: Generate a random hex value
+      set_fact:
+        iha_suffix: "iha-{{ '%04X' % (65536 | random) }}"
+
+    - name: Save iha_suffix to file
+      copy:
+        dest: shared_vars.yaml
+        content: |
+          test_suffix: {{ iha_suffix }}
+
     - name: Install openstackclient
       ansible.builtin.package:
         name:
@@ -77,19 +87,19 @@
 
     # create openstack networks/routers/etc
 
-    - name: Create privnet
+    - name: Create a private network
       openstack.cloud.network:
         cloud: default
         state: present
-        name: privnet
+        name: "private_net_{{ iha_suffix }}"
         external: false
 
-    - name: Create priv subnet
+    - name: Create private subnet
       openstack.cloud.subnet:
         cloud: default
         state: present
-        name: privsubnet
-        network_name: privnet
+        name: "private_subnet_{{ iha_suffix }}"
+        network_name: "private_net_{{ iha_suffix }}"
         cidr: 192.168.200.0/24
         dns_nameservers:
           - 10.19.42.41
@@ -99,24 +109,24 @@
     - name: Create router
       openstack.cloud.router:
         cloud: default
-        name: myrouter
+        name: "router_{{ iha_suffix }}"
         state: present
         network: public
         interfaces:
-          - privsubnet
+          - "private_subnet_{{ iha_suffix }}"
 
     - name: Create security group
       openstack.cloud.security_group:
         cloud: default
         project: admin
-        name: ping
+        name: "ping_{{ iha_suffix }}"
         state: present
 
     - name: Allow ping
       openstack.cloud.security_group_rule:
         cloud: default
         project: admin
-        security_group: ping
+        security_group: "ping_{{ iha_suffix }}"
         protocol: icmp
         remote_ip_prefix: 0.0.0.0/0
 
@@ -135,22 +145,22 @@
     - name: Download cirros image
       ansible.builtin.get_url:
         url: https://download.cirros-cloud.net/0.6.2/cirros-0.6.2-x86_64-disk.img
-        dest: /home/zuul/cirros-0.6.2-iha-x86_64-disk.img
+        dest: "/home/zuul/cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
 
     - name: Upload Cirros Image
       openstack.cloud.image:
         cloud: default
-        name: cirros-0.6.2-iha-x86_64-disk.img
+        name: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         container_format: bare
         disk_format: qcow2
         state: present
-        filename: /home/zuul/cirros-0.6.2-iha-x86_64-disk.img
+        filename: "/home/zuul/cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
 
     - name: Create flavor
       openstack.cloud.compute_flavor:
         cloud: default
         state: present
-        name: m1.nano
+        name: "m1.nano.{{ iha_suffix }}"
         ram: 128
         vcpus: 1
         disk: 1

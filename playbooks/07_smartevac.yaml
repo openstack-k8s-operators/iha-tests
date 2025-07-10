@@ -79,6 +79,8 @@
     kubeadmin_user: kubeadmin
     api_url: https://api.ocp.openstack.lab:6443
     name: "07-test-smart-evacuation"
+  vars_files:
+    - ../shared_vars.yaml
 
   tasks:
     - name: 07 Create results file (failure)
@@ -155,6 +157,8 @@
 - name: 07 Delete all existing instances
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
 
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact
@@ -190,6 +194,8 @@
 - name: 07 Verify if smart evacuation is enabled
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
 
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact
@@ -221,13 +227,13 @@
         state: present
         availability_zone: nova:{{ compute_details | selectattr('readable_hostname', 'equalto', 'compute-0') | map(attribute='hostname') | first }}
         name: c1
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 07 Crash compute-0
   hosts: hypervisor
@@ -259,6 +265,8 @@
 - name: 07 Wait for compute-0 to transition to 'down' on OpenStack controller and VM c1 correctly evacuated to other hypervisors
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
 
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact
@@ -357,6 +365,8 @@
 - name: 07 Create fill flavor and generate instances on other computes available
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
 
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact
@@ -383,14 +393,14 @@
         state: present
         availability_zone: nova:{{ item_vm.0.hostname }}
         name: "{{ item_vm.0.readable_hostname }}-vmfill{{ item_vm.1 | string }}"
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
         flavor: fill
         auto_ip: false
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
         wait: true
       loop: "{{ compute_details | selectattr('readable_hostname', 'ne', 'compute-0') | product(range(1, (num_vms | default(1) | int) + 1) | list) }}"
       loop_control:
@@ -418,13 +428,13 @@
         state: present
         availability_zone: nova:{{ compute_details | selectattr('readable_hostname', 'equalto', 'compute-0') | map(attribute='hostname') | first }}
         name: vm0
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
         flavor: fill
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 07 Crash compute-0
   hosts: hypervisor
@@ -458,6 +468,8 @@
   gather_facts: false
   vars:
     name: "07-test-smart-evacuation"
+  vars_files:
+    - ../shared_vars.yaml
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact
       ansible.builtin.set_fact:
@@ -537,6 +549,8 @@
 - name: 07 Disable smart evacuation
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
 
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact
@@ -561,6 +575,8 @@
 - name: 07 Cleanup VMs
   hosts: controller-0
   gather_facts: false
+  vars_files:
+    - ../shared_vars.yaml
 
   pre_tasks:
     - name: 07 Load and set compute details from JSON file as a fact

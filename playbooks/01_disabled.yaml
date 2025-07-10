@@ -18,6 +18,8 @@
   hosts: controller-0
   vars:
     name: "01-test-iha-disabled"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 01 Create results file (failure)
       ansible.builtin.template:
@@ -89,13 +91,13 @@
         state: present
         availability_zone: "nova:{{ hostvars['controller-0']['compute0'] }}"
         name: c1
-        image: cirros-0.6.2-iha-x86_64-disk.img
+        image: "cirros-0.6.2-x86_64-disk.img.{{ iha_suffix }}"
         timeout: 200
-        flavor: m1.nano
+        flavor: "m1.nano.{{ iha_suffix }}"
         security_groups:
-          - ping
+          - "ping_{{ iha_suffix }}"
         nics:
-          - net-name: privnet
+          - net-name: "private_subnet_{{ iha_suffix }}"
 
 - name: 01 Crash compute-0
   hosts: hypervisor
@@ -113,6 +115,8 @@
   gather_facts: false
   vars:
     name: "01-test-iha-disabled"
+  vars_files:
+    - ../shared_vars.yaml
   tasks:
     - name: 01 Check logs
       ansible.builtin.shell: |
