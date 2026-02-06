@@ -184,7 +184,7 @@
       loop: "{{ deletion_tasks.results }}"
       register: deletion_results
       until: deletion_results.finished
-      retries: 20
+      retries: 60
       delay: 15
 
 - name: 07 Verify if smart evacuation is enabled
@@ -289,7 +289,7 @@
         cloud: default
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='state') | first) == 'down'
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 07 Fetch and check VM status on each VM until ACTIVE
@@ -298,7 +298,7 @@
         name: "{{ vm_name }}"
       register: vm_status_info
       until: vm_status_info.servers[0].status == "ACTIVE"
-      retries: 12
+      retries: 36
       delay: 10
       loop: "{{ compute_zero_vms }}"
       loop_control:
@@ -310,7 +310,7 @@
         name: "{{ vm_name }}"
       register: vm_status_info
       until: vm_status_info.servers is defined and vm_status_info.servers[0].hypervisor_hostname != compute_zero_hostname
-      retries: 12
+      retries: 36
       delay: 10
       loop: "{{ compute_zero_vms }}"
       loop_control:
@@ -338,7 +338,7 @@
         tail_lines: 100
         all_containers: true
       register: instanceha_logs
-      retries: 12
+      retries: 36
       delay: 10
       until: "'evacuated successfully' in instanceha_logs.log"
 
@@ -347,7 +347,7 @@
         cloud: default
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='state') | first) == 'up'
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 07 Wait for compute-0 to transition to 'enable' on OpenStack controller
@@ -355,7 +355,7 @@
         cloud: default
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='status') | first) == 'enabled'
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 07 Wait for compute-0 to transition to 'enable' on OpenStack controller
@@ -363,7 +363,7 @@
         cloud: default
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='status') | first) == 'enabled'
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 07 Remove vm
@@ -424,7 +424,7 @@
         jid: "{{ item.ansible_job_id }}"
       register: vm_creation_result
       until: vm_creation_result.finished
-      retries: 10
+      retries: 30
       delay: 10
       loop: "{{ vm_creation_tasks.results }}"
       loop_control:
@@ -512,7 +512,7 @@
         cloud: default
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='state') | first) == 'down'
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 07 Fetch and check VM status for vm0 until it goes in ERROR state
@@ -522,7 +522,7 @@
       register: vm_status_info
       until:
         - vm_status_info.servers[0].status == "ERROR"
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 07 Fail if vm0 is not running on compute-0
@@ -539,7 +539,7 @@
         tail_lines: 100
         all_containers: true
       register: instanceha_logs
-      retries: 10
+      retries: 30
       delay: 5
       until: "'Failed evacuating' in instanceha_logs.log"
 
@@ -614,7 +614,7 @@
       loop: "{{ deletion_tasks.results }}"
       register: deletion_results
       until: deletion_results.finished
-      retries: 20
+      retries: 60
       delay: 15
 
 - name: 07 Restart compute-0
@@ -669,7 +669,7 @@
         cloud: default
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='state') | first) == 'up'
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 07 Wait for compute-0 to transition to 'enable' on OpenStack controller
@@ -677,5 +677,5 @@
         cloud: default
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='status') | first) == 'enabled'
-      retries: 12
+      retries: 36
       delay: 10

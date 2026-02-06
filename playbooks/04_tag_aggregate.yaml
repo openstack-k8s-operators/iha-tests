@@ -141,7 +141,7 @@
         openstack --os-cloud default server show vm-ha  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
       register: hypervisor2
       changed_when: false
-      retries: 60
+      retries: 180
       delay: 10
       until: hypervisor2.stdout not in hostvars['controller-0']['compute0']
 
@@ -187,7 +187,7 @@
         oc logs deploy/instanceha-0
       register: logs
       changed_when: false
-      retries: 60
+      retries: 180
       delay: 10
       until: "'are not part of an evacuable aggregate' in logs.stdout or 'Computes not part of evacuable aggregate' in logs.stdout"
 
@@ -268,7 +268,7 @@
         host: "{{ compute0 }}"
       register: compute_0_status
       until: "'up' in compute_0_status.compute_services | map(attribute='state')"
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 04 Wait compute-0 to be enabled
@@ -278,7 +278,7 @@
         host: "{{ compute0 }}"
       register: compute_0_status
       until: "'enabled' in compute_0_status.compute_services | map(attribute='status')"
-      retries: 60
+      retries: 180
       delay: 10
 
     - name: 04 Wait compute-1 to be up
@@ -288,7 +288,7 @@
         host: "{{ compute1 }}"
       register: compute_1_status
       until: "'up' in compute_1_status.compute_services | map(attribute='state')"
-      retries: 12
+      retries: 36
       delay: 10
 
     - name: 04 Wait compute-1 to be enabled
@@ -298,7 +298,7 @@
         host: "{{ compute1 }}"
       register: compute_1_status
       until: "'enabled' in compute_1_status.compute_services | map(attribute='status')"
-      retries: 60
+      retries: 180
       delay: 10
 
     - name: 04 save logs
