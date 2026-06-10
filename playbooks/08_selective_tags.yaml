@@ -209,7 +209,7 @@
 
     - name: 08 Fetch vm-imageha status
       ansible.builtin.shell: |
-        openstack --os-cloud default server show vm-flavorha |grep vm_state |tail -1  |awk '{print $4}'
+        openstack --os-cloud default server show vm-imageha |grep vm_state |tail -1  |awk '{print $4}'
       register: vmimageha_status
       changed_when: false
 
@@ -285,13 +285,33 @@
       ansible.builtin.pause:
         minutes: 1
 
+    - name: 08 Wait vm-flavorha is absent before recreate
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show vm-flavorha >/dev/null 2>&1
+      register: vm_flavorha_exists
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 5
+      until: vm_flavorha_exists.rc != 0
+
+    - name: 08 Wait vm-imageha is absent before recreate
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show vm-imageha >/dev/null 2>&1
+      register: vm_imageha_exists
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 5
+      until: vm_imageha_exists.rc != 0
+
     - name: 08 Create instance vm-flavorha
       openstack.cloud.server:
         cloud: default
         auth:
           project_name: admin
         state: present
-        availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
+        availability_zone: nova:{{ hostvars['controller-0']['compute1'] }}
         name: vm-flavorha
         image: cirros-0.6.2-iha-x86_64-disk.img
         timeout: 200
@@ -307,7 +327,7 @@
         auth:
           project_name: admin
         state: present
-        availability_zone: nova:{{ hostvars['controller-0']['compute0'] }}
+        availability_zone: nova:{{ hostvars['controller-0']['compute1'] }}
         name: vm-imageha
         image: cirros-ha
         timeout: 200
@@ -317,7 +337,7 @@
         nics:
           - net-name: ihanet
 
-- name: 08 Crash compute-0
+- name: 08 Crash compute-1
   hosts: hypervisor
   remote_user: zuul
   become: true
@@ -325,7 +345,7 @@
   tasks:
     - name: 08 Shutdown compute
       community.libvirt.virt:
-        name: cifmw-compute-{{ hostvars['controller-0']['string'] }}-0
+        name: cifmw-compute-{{ hostvars['controller-0']['string'] }}-1
         state: destroyed
 
 - name: 08 Check status
@@ -340,7 +360,7 @@
       register: hypervisor2
       retries: 180
       delay: 10
-      until: hypervisor2.stdout not in hostvars['controller-0']['compute0']
+      until: hypervisor2.stdout not in hostvars['controller-0']['compute1']
       changed_when: false
 
     - name: 08 Fetch hypervisor for vm-imageha
@@ -352,7 +372,7 @@
     - name: 08 Check if vm-imageha was evacuated
       ansible.builtin.fail:
         msg: '"vm-imageha not evacuated"'
-      when: hypervisor_vmimageha.stdout in hostvars['controller-0']['compute0']
+      when: hypervisor_vmimageha.stdout in hostvars['controller-0']['compute1']
 
     - name: 08 Fetch hypervisor for instance vm-flavorha
       ansible.builtin.shell: |
@@ -363,7 +383,7 @@
     - name: 08 Check if vm-flavorha was evacuated
       ansible.builtin.fail:
         msg: '"vm-flavorha evacuated"'
-      when: hypervisor_vmflavorha.stdout not in hostvars['controller-0']['compute0']
+      when: hypervisor_vmflavorha.stdout not in hostvars['controller-0']['compute1']
 
     - name: 08 Fetch vm-flavorha status
       ansible.builtin.shell: |
@@ -408,23 +428,23 @@
       ansible.builtin.set_fact:
         hypervisors: "{{ hypervisor_list.compute_services | map(attribute='host') | list | sort }}"
 
-    - name: 08 Wait compute-0 to be up
+    - name: 08 Wait compute-1 to be up
       openstack.cloud.compute_service_info:
         cloud: default
         binary: nova-compute
-        host: "{{ compute0 }}"
-      register: compute_0_status
-      until: "'up' in compute_0_status.compute_services | map(attribute='state')"
+        host: "{{ compute1 }}"
+      register: compute_1_status
+      until: "'up' in compute_1_status.compute_services | map(attribute='state')"
       retries: 36
       delay: 10
 
-    - name: 08 Wait compute-0 to be enabled
+    - name: 08 Wait compute-1 to be enabled
       openstack.cloud.compute_service_info:
         cloud: default
         binary: "nova-compute"
-        host: "{{ compute0 }}"
-      register: compute_0_status
-      until: "'enabled' in compute_0_status.compute_services | map(attribute='status')"
+        host: "{{ compute1 }}"
+      register: compute_1_status
+      until: "'enabled' in compute_1_status.compute_services | map(attribute='status')"
       retries: 180
       delay: 10
 
@@ -454,6 +474,26 @@
       ansible.builtin.shell: |
         oc apply -f /home/zuul/iha-cm.yaml
       changed_when: false
+
+    - name: 08 Wait vm-flavorha is absent before recreate
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show vm-flavorha >/dev/null 2>&1
+      register: vm_flavorha_exists
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 5
+      until: vm_flavorha_exists.rc != 0
+
+    - name: 08 Wait vm-imageha is absent before recreate
+      ansible.builtin.shell: |
+        openstack --os-cloud default server show vm-imageha >/dev/null 2>&1
+      register: vm_imageha_exists
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 5
+      until: vm_imageha_exists.rc != 0
 
     - name: 08 Create instance vm
       openstack.cloud.server:
