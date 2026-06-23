@@ -65,6 +65,7 @@
         dest: /home/zuul/iha-cm.yaml
       vars:
         reserved_hosts: "true"
+        threshold: "100"
 
     - name: Apply config
       ansible.builtin.shell: |
