@@ -352,7 +352,7 @@
       register: instanceha_logs
       retries: 36
       delay: 10
-      until: "'evacuated successfully' in instanceha_logs.log"
+      until: "'evacuated successfully' in instanceha_logs.log or 'completed successfully' in instanceha_logs.log"
 
     - name: 07 Wait for compute-0 to transition to 'up' on OpenStack controller
       openstack.cloud.compute_service_info:
