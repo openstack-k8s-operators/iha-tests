@@ -32,20 +32,10 @@
         state: directory
         mode: '0755'
 
-    - name: Create clouds.yaml file
-      ansible.builtin.copy:
-        dest: /home/zuul/.config/openstack/clouds.yaml
-        content: |
-          clouds:
-              default:
-                  auth:
-                      auth_url: https://keystone-public-openstack.apps.ocp.openstack.lab
-                      project_name: admin
-                      username: admin
-                      user_domain_name: Default
-                      project_domain_name: Default
-                      password: "12345678"
-                  region_name: regionOne
+    - name: Create clouds.yaml and secure files
+      ansible.builtin.shell: |
+        oc -n openstack exec openstackclient -- cat .config/openstack/secure.yaml > /home/zuul/.config/openstack/secure.yaml
+        oc -n openstack exec openstackclient -- cat .config/openstack/clouds.yaml > /home/zuul/.config/openstack/clouds.yaml
 
     - name: Get all projects
       openstack.cloud.project_info:
