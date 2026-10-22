@@ -14,6 +14,34 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+- name: 04 Pre-cleanup (idempotent re-run)
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 04 Pre-cleanup - Remove leftover VMs
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: "{{ item }}"
+      loop:
+        - vm-ha
+        - vm
+      ignore_errors: true
+
+    - name: 04 Pre-cleanup - Remove leftover aggregates
+      openstack.cloud.host_aggregate:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: "{{ item }}"
+      loop:
+        - iha
+        - nonha
+      ignore_errors: true
+
 - name: 04 Test Instance HA
   hosts: controller-0
   gather_facts: false
@@ -33,7 +61,6 @@
         dest: /home/zuul/iha-cm.yaml
       vars:
         tagged_aggregates: "true"
-        threshold: 100
 
     - name: Apply config
       ansible.builtin.shell: |
@@ -58,6 +85,18 @@
       ansible.builtin.set_fact:
         compute1: "compute-{{ string }}-1.ctlplane.example.com"
 
+    - name: 04 Set compute-2 name as fact
+      ansible.builtin.set_fact:
+        compute2: "compute-{{ string }}-2.ctlplane.example.com"
+
+    - name: 04 Set compute-3 name as fact
+      ansible.builtin.set_fact:
+        compute3: "compute-{{ string }}-3.ctlplane.example.com"
+
+    - name: 04 Set compute-4 name as fact
+      ansible.builtin.set_fact:
+        compute4: "compute-{{ string }}-4.ctlplane.example.com"
+
     - name: 04 Create ha aggregate
       openstack.cloud.host_aggregate:
         cloud: default
@@ -68,6 +107,7 @@
         availability_zone: nova
         hosts:
           - "{{ hostvars['controller-0']['compute0'] }}"
+          - "{{ hostvars['controller-0']['compute2'] }}"
 
     - name: 04 Create non-ha aggregate
       openstack.cloud.host_aggregate:
@@ -85,9 +125,14 @@
         openstack --os-cloud default aggregate set --property trait:CUSTOM_HA=true iha
       changed_when: false
 
-    - name: 04 sleep 60
-      ansible.builtin.pause:
-        minutes: 1
+    - name: 04 Wait for config to take effect
+      ansible.builtin.shell: |
+        oc -n openstack logs deploy/instanceha-0 --tail=20 | grep -q "Poll cycle completed"
+      register: config_effect_result
+      until: config_effect_result.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
 
     - name: 04 Wait for compute-0 resource provider to be available in placement
       ansible.builtin.shell: |
@@ -97,7 +142,7 @@
       register: trait_check
       until: trait_check.rc == 0
       retries: 24
-      delay: 10
+      delay: 5
       changed_when: false
 
     - name: 04 Wait for compute-1 resource provider to be available in placement
@@ -108,7 +153,7 @@
       register: trait_check
       until: trait_check.rc == 0
       retries: 24
-      delay: 10
+      delay: 5
       changed_when: false
 
     - name: 04 Create instance vm-ha
@@ -164,8 +209,8 @@
       register: hypervisor2
       changed_when: false
       retries: 180
-      delay: 10
-      until: hypervisor2.stdout not in hostvars['controller-0']['compute0']
+      delay: 5
+      until: hypervisor2.stdout | length > 0 and hypervisor2.stdout not in hostvars['controller-0']['compute0']
 
     - name: 04 Fetch hypervisor for instance vm-ha
       ansible.builtin.shell: |
@@ -210,7 +255,7 @@
       register: logs
       changed_when: false
       retries: 180
-      delay: 10
+      delay: 5
       until: "'are not part of an evacuable aggregate' in logs.stdout or 'Computes not part of evacuable aggregate' in logs.stdout"
 
     - name: 04 Fetch hypervisor for instance vm
@@ -291,7 +336,7 @@
       register: compute_0_status
       until: "'up' in compute_0_status.compute_services | map(attribute='state')"
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 04 Wait compute-0 to be enabled
       openstack.cloud.compute_service_info:
@@ -301,7 +346,7 @@
       register: compute_0_status
       until: "'enabled' in compute_0_status.compute_services | map(attribute='status')"
       retries: 180
-      delay: 10
+      delay: 5
 
     - name: 04 Wait compute-1 to be up
       openstack.cloud.compute_service_info:
@@ -311,7 +356,7 @@
       register: compute_1_status
       until: "'up' in compute_1_status.compute_services | map(attribute='state')"
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 04 Wait compute-1 to be enabled
       openstack.cloud.compute_service_info:
@@ -321,7 +366,7 @@
       register: compute_1_status
       until: "'enabled' in compute_1_status.compute_services | map(attribute='status')"
       retries: 180
-      delay: 10
+      delay: 5
 
     - name: 04 save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log

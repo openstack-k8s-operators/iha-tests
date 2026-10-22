@@ -14,6 +14,29 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+- name: 02 Pre-cleanup (idempotent re-run)
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 02 Pre-cleanup - Remove leftover VMs
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: "{{ item }}"
+      loop:
+        - vm
+        - vm-ha
+      ignore_errors: true
+
+    - name: 02 Pre-cleanup - Remove leftover flavor
+      openstack.cloud.compute_flavor:
+        cloud: default
+        state: absent
+        name: iha.nanoha
+      ignore_errors: true
+
 - name: 02 TEST TAG FLAVOR
   hosts: controller-0
   gather_facts: false
@@ -55,6 +78,18 @@
       ansible.builtin.set_fact:
         compute1: "compute-{{ string }}-1.ctlplane.example.com"
 
+    - name: 02 Set compute-2 name as fact
+      ansible.builtin.set_fact:
+        compute2: "compute-{{ string }}-2.ctlplane.example.com"
+
+    - name: 02 Set compute-3 name as fact
+      ansible.builtin.set_fact:
+        compute3: "compute-{{ string }}-3.ctlplane.example.com"
+
+    - name: 02 Set compute-4 name as fact
+      ansible.builtin.set_fact:
+        compute4: "compute-{{ string }}-4.ctlplane.example.com"
+
     - name: 02 Create tagged flavor
       openstack.cloud.compute_flavor:
         cloud: default
@@ -87,7 +122,7 @@
       register: trait_check
       until: trait_check.rc == 0
       retries: 24
-      delay: 10
+      delay: 5
       changed_when: false
 
     - name: 02 Create instance vm
@@ -145,8 +180,8 @@
       register: hypervisor2
       changed_when: false
       retries: 180
-      delay: 10
-      until: "hypervisor2.stdout not in hostvars['controller-0']['compute0']"
+      delay: 5
+      until: "hypervisor2.stdout | length > 0 and hypervisor2.stdout not in hostvars['controller-0']['compute0']"
 
     - name: 02 Fetch hypervisor for instance vm
       ansible.builtin.shell: |
@@ -221,7 +256,7 @@
       register: compute_0_status
       until: "'up' in compute_0_status.compute_services | map(attribute='state')"
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 02 Wait compute-0 to be enabled
       openstack.cloud.compute_service_info:
@@ -231,11 +266,7 @@
       register: compute_0_status
       until: "'enabled' in compute_0_status.compute_services | map(attribute='status')"
       retries: 180
-      delay: 10
-
-    - name: sleep 60
-      ansible.builtin.pause:
-        minutes: 1
+      delay: 5
 
     - name: 02 save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log

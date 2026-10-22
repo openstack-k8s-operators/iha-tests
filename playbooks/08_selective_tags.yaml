@@ -14,6 +14,36 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+- name: 08 Pre-cleanup (idempotent re-run)
+  hosts: controller-0
+  gather_facts: false
+  tasks:
+    - name: 08 Pre-cleanup - Remove leftover VMs
+      openstack.cloud.server:
+        cloud: default
+        auth:
+          project_name: admin
+        state: absent
+        name: "{{ item }}"
+      loop:
+        - vm-flavorha
+        - vm-imageha
+      ignore_errors: true
+
+    - name: 08 Pre-cleanup - Remove leftover flavor
+      openstack.cloud.compute_flavor:
+        cloud: default
+        state: absent
+        name: iha.nanoha
+      ignore_errors: true
+
+    - name: 08 Pre-cleanup - Remove leftover image
+      openstack.cloud.image:
+        cloud: default
+        state: absent
+        name: cirros-ha
+      ignore_errors: true
+
 - name: 08 Test Disabling flavor or image tagging
   hosts: controller-0
   gather_facts: false
@@ -34,7 +64,7 @@
 
     - name: Apply config
       ansible.builtin.shell: |
-        oc apply -f /home/zuul/iha-cm.yaml
+        oc -n openstack apply -f /home/zuul/iha-cm.yaml
       changed_when: false
 
     - name: 08 fetch random string
@@ -55,6 +85,12 @@
     - name: 08 Set compute-2 name as fact
       ansible.builtin.set_fact:
         compute2: "compute-{{ string }}-2.ctlplane.example.com"
+    - name: 08 Set compute-3 name as fact
+      ansible.builtin.set_fact:
+        compute3: "compute-{{ string }}-3.ctlplane.example.com"
+    - name: 08 Set compute-4 name as fact
+      ansible.builtin.set_fact:
+        compute4: "compute-{{ string }}-4.ctlplane.example.com"
     - name: 08 Create tagged flavor
       openstack.cloud.compute_flavor:
         cloud: default
@@ -113,7 +149,7 @@
       register: trait_check
       until: trait_check.rc == 0
       retries: 24
-      delay: 10
+      delay: 5
       changed_when: false
 
     - name: 08 Create instance vm
@@ -170,8 +206,8 @@
         openstack --os-cloud default server show vm-imageha  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
       register: hypervisor2
       retries: 180
-      delay: 10
-      until: hypervisor2.stdout not in hostvars['controller-0']['compute0']
+      delay: 5
+      until: hypervisor2.stdout | length > 0 and hypervisor2.stdout not in hostvars['controller-0']['compute0']
       changed_when: false
 
     - name: 08 Fetch hypervisor for vm-imageha
@@ -252,7 +288,7 @@
       register: compute_0_status
       until: "'up' in compute_0_status.compute_services | map(attribute='state')"
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 08 Wait compute-0 to be enabled
       openstack.cloud.compute_service_info:
@@ -262,10 +298,10 @@
       register: compute_0_status
       until: "'enabled' in compute_0_status.compute_services | map(attribute='status')"
       retries: 180
-      delay: 10
+      delay: 5
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 > /home/zuul/iha-tests-results/{{ name }}.log
+      ansible.builtin.shell: oc -n openstack logs deploy/instanceha-0 > /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     # DISABLE FLAVOR
@@ -278,12 +314,17 @@
 
     - name: Apply config
       ansible.builtin.shell: |
-        oc apply -f /home/zuul/iha-cm.yaml
+        oc -n openstack apply -f /home/zuul/iha-cm.yaml
       changed_when: false
 
-    - name: sleep
-      ansible.builtin.pause:
-        minutes: 1
+    - name: 08 Wait for config to take effect
+      ansible.builtin.shell: |
+        oc -n openstack logs deploy/instanceha-0 --tail=20 | grep -q "Poll cycle completed"
+      register: config_effect_result
+      until: config_effect_result.rc == 0
+      retries: 60
+      delay: 10
+      changed_when: false
 
     - name: 08 Wait vm-flavorha is absent before recreate
       ansible.builtin.shell: |
@@ -359,8 +400,8 @@
         openstack --os-cloud default server show vm-imageha  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
       register: hypervisor2
       retries: 180
-      delay: 10
-      until: hypervisor2.stdout not in hostvars['controller-0']['compute1']
+      delay: 5
+      until: hypervisor2.stdout | length > 0 and hypervisor2.stdout not in hostvars['controller-0']['compute1']
       changed_when: false
 
     - name: 08 Fetch hypervisor for vm-imageha
@@ -436,7 +477,7 @@
       register: compute_1_status
       until: "'up' in compute_1_status.compute_services | map(attribute='state')"
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 08 Wait compute-1 to be enabled
       openstack.cloud.compute_service_info:
@@ -446,10 +487,10 @@
       register: compute_1_status
       until: "'enabled' in compute_1_status.compute_services | map(attribute='status')"
       retries: 180
-      delay: 10
+      delay: 5
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
+      ansible.builtin.shell: oc -n openstack logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: Reset iha configmap
@@ -459,7 +500,7 @@
 
     - name: Apply config
       ansible.builtin.shell: |
-        oc apply -f /home/zuul/iha-cm.yaml
+        oc -n openstack apply -f /home/zuul/iha-cm.yaml
       changed_when: false
 
     # DISABLE IMAGE
@@ -472,7 +513,7 @@
 
     - name: Apply config
       ansible.builtin.shell: |
-        oc apply -f /home/zuul/iha-cm.yaml
+        oc -n openstack apply -f /home/zuul/iha-cm.yaml
       changed_when: false
 
     - name: 08 Wait vm-flavorha is absent before recreate
@@ -549,8 +590,8 @@
         openstack --os-cloud default server show vm-flavorha  |grep 'OS-EXT-SRV-ATTR:host ' |awk '{print $4}' |sed 's/\..*$//'
       register: hypervisor2
       retries: 180
-      delay: 10
-      until: hypervisor2.stdout not in hostvars['controller-0']['compute0']
+      delay: 5
+      until: hypervisor2.stdout | length > 0 and hypervisor2.stdout not in hostvars['controller-0']['compute0']
       changed_when: false
 
     - name: 08 Fetch hypervisor for vm-imageha
@@ -626,7 +667,7 @@
       register: compute_0_status
       until: "'up' in compute_0_status.compute_services | map(attribute='state')"
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 08 Wait compute-0 to be enabled
       openstack.cloud.compute_service_info:
@@ -636,14 +677,10 @@
       register: compute_0_status
       until: "'enabled' in compute_0_status.compute_services | map(attribute='status')"
       retries: 180
-      delay: 10
-
-    - name: sleep
-      ansible.builtin.pause:
-        minutes: 1
+      delay: 5
 
     - name: 08 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
+      ansible.builtin.shell: oc -n openstack logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: Reset iha configmap
@@ -653,7 +690,7 @@
 
     - name: Apply config
       ansible.builtin.shell: |
-        oc apply -f /home/zuul/iha-cm.yaml
+        oc -n openstack apply -f /home/zuul/iha-cm.yaml
       changed_when: false
 
     - name: 08 Remove tagged image

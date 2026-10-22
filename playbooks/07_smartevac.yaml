@@ -75,7 +75,6 @@
   gather_facts: false
 
   vars:
-    ansible_ssh_private_key_file: /home/zuul/.ssh/cifmw_reproducer_key
     kubeadmin_user: kubeadmin
     api_url: https://api.ocp.openstack.lab:6443
     name: "07-test-smart-evacuation"
@@ -116,41 +115,6 @@
         password: "{{ kubeadmin_password }}"
         src: /home/zuul/iha.yaml
         verify_ssl: false
-
-- name: 07 Generate detailed compute node information on the controller
-  hosts: controller-0
-  gather_facts: false
-
-  tasks:
-    - name: 07 Fetch compute service (hypervisor) info from OpenStack
-      openstack.cloud.compute_service_info:
-        cloud: default
-      register: hypervisor_list
-
-    - name: 07 Reset compute_details variable
-      ansible.builtin.set_fact:
-        compute_details: []
-
-    - name: 07 Extract detailed information for nova-compute hypervisors
-      ansible.builtin.set_fact:
-        compute_details: "{{ compute_details | default([]) + [{'hostname': item.host, 'readable_hostname': (item.host | regex_replace('compute-[^.-]+-(\\d+).*', 'compute-\\\
-          1')), 'state': item.state, 'status': item.status}] }}"
-      loop: "{{ hypervisor_list.compute_services | selectattr('binary', 'equalto', 'nova-compute') }}"
-
-    - name: 07 Sort compute details by hostname
-      ansible.builtin.set_fact:
-        compute_details: "{{ compute_details | sort(attribute='hostname') }}"
-
-    - name: 07 Save compute details to JSON file on controller
-      ansible.builtin.copy:
-        content: "{{ compute_details | to_json }}"
-        dest: /tmp/compute_details.json
-
-    - name: 07 Transfer JSON file from controller to controller-0
-      ansible.builtin.fetch:
-        src: /tmp/compute_details.json
-        dest: /tmp/compute_details.json
-        flat: true
 
 - name: 07 Delete all existing instances
   hosts: controller-0
@@ -201,6 +165,22 @@
         compute_names: "{{ compute_details | map(attribute='hostname') | list }}"
 
   tasks:
+    - name: 07 Ensure all compute services are up and enabled before setup
+      ansible.builtin.shell: |
+        openstack --os-cloud default compute service set --enable --up {{ item }} nova-compute
+      loop: "{{ compute_names }}"
+      changed_when: false
+      ignore_errors: true
+
+    - name: 07 Wait for all compute services to be up
+      openstack.cloud.compute_service_info:
+        cloud: default
+        binary: nova-compute
+      register: all_services
+      until: all_services.compute_services | rejectattr('state', 'equalto', 'up') | list | length == 0
+      retries: 24
+      delay: 5
+
     - name: Reset iha configmap
       ansible.builtin.template:
         src: templates/iha-cm.yaml.j2
@@ -213,9 +193,14 @@
         oc apply -f /home/zuul/iha-cm.yaml
       changed_when: false
 
-    - name: sleep
-      ansible.builtin.pause:
-        minutes: 1
+    - name: 07 Wait for config to take effect
+      ansible.builtin.shell: |
+        oc -n openstack logs deploy/instanceha-0 --tail=20 | grep -q "Poll cycle completed"
+      register: config_effect_result
+      until: config_effect_result.rc == 0
+      retries: 60
+      delay: 10
+      changed_when: false
 
     - name: 07 Wait for compute-0 resource provider to be available in placement
       ansible.builtin.shell: |
@@ -226,7 +211,7 @@
       register: trait_check
       until: trait_check.rc == 0
       retries: 24
-      delay: 10
+      delay: 5
       changed_when: false
 
     - name: 07 Create initial instance vm on compute-0
@@ -302,7 +287,7 @@
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='state') | first) == 'down'
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 07 Fetch and check VM status on each VM until ACTIVE
       openstack.cloud.server_info:
@@ -311,7 +296,7 @@
       register: vm_status_info
       until: vm_status_info.servers[0].status == "ACTIVE"
       retries: 36
-      delay: 10
+      delay: 5
       loop: "{{ compute_zero_vms }}"
       loop_control:
         loop_var: vm_name
@@ -323,7 +308,7 @@
       register: vm_status_info
       until: vm_status_info.servers is defined and vm_status_info.servers[0].hypervisor_hostname != compute_zero_hostname
       retries: 36
-      delay: 10
+      delay: 5
       loop: "{{ compute_zero_vms }}"
       loop_control:
         loop_var: vm_name
@@ -351,7 +336,7 @@
         all_containers: true
       register: instanceha_logs
       retries: 36
-      delay: 10
+      delay: 5
       until: "'evacuated successfully' in instanceha_logs.log or 'completed successfully' in instanceha_logs.log"
 
     - name: 07 Wait for compute-0 to transition to 'up' on OpenStack controller
@@ -360,7 +345,7 @@
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='state') | first) == 'up'
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 07 Wait for compute-0 to transition to 'enable' on OpenStack controller
       openstack.cloud.compute_service_info:
@@ -368,15 +353,7 @@
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='status') | first) == 'enabled'
       retries: 36
-      delay: 10
-
-    - name: 07 Wait for compute-0 to transition to 'enable' on OpenStack controller
-      openstack.cloud.compute_service_info:
-        cloud: default
-      register: hypervisor_list
-      until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='status') | first) == 'enabled'
-      retries: 36
-      delay: 10
+      delay: 5
 
     - name: 07 Remove vm
       openstack.cloud.server:
@@ -396,12 +373,25 @@
         compute_details: "{{ (lookup('file', '/tmp/compute_details.json') | from_json) }}"
 
   tasks:
+    - name: 07 Query allocatable memory from placement
+      ansible.builtin.shell: |
+        compute1_hostname="{{ compute_details | selectattr('readable_hostname', 'equalto', 'compute-1') | map(attribute='hostname') | first }}"
+        rp_uuid=$(openstack --os-cloud default resource provider list -f value -c uuid -c name | grep "$compute1_hostname" | awk '{print $1}')
+        openstack --os-cloud default resource provider inventory list $rp_uuid -f json | \
+          python3 -c "import sys,json; inv=json.load(sys.stdin); mem=[r for r in inv if r['resource_class']=='MEMORY_MB'][0]; print(int(mem['total'] * mem['allocation_ratio']) - mem['reserved'])"
+      register: allocatable_result
+      changed_when: false
+
+    - name: 07 Compute dynamic fill flavor size
+      ansible.builtin.set_fact:
+        fill_mb: "{{ allocatable_result.stdout | int - 64 }}"
+
     - name: 07 Create fill flavor
       openstack.cloud.compute_flavor:
         cloud: default
         state: present
         name: fill
-        ram: 13096
+        ram: "{{ fill_mb }}"
         vcpus: 8
         disk: 1
         extra_specs:
@@ -437,10 +427,22 @@
       register: vm_creation_result
       until: vm_creation_result.finished
       retries: 30
-      delay: 10
+      delay: 5
       loop: "{{ vm_creation_tasks.results }}"
       loop_control:
         pause: 1
+
+    - name: 07 Wait for compute-0 resource provider to be available in placement (after restart)
+      ansible.builtin.shell: |
+        compute0_hostname="{{ compute_details | selectattr('readable_hostname', 'equalto', 'compute-0') | map(attribute='hostname') | first }}"
+        rp_uuid=$(openstack --os-cloud default resource provider list -f value -c uuid -c name | grep "$compute0_hostname" | awk '{print $1}')
+        traits=$(openstack --os-cloud default resource provider trait list $rp_uuid -f value)
+        echo "$traits" | grep -q "COMPUTE_IMAGE_TYPE_QCOW2" && ! echo "$traits" | grep -q "COMPUTE_STATUS_DISABLED"
+      register: trait_check
+      until: trait_check.rc == 0
+      retries: 24
+      delay: 5
+      changed_when: false
 
     - name: 07 Create instance vm0 on compute-0
       openstack.cloud.server:
@@ -525,7 +527,7 @@
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='state') | first) == 'down'
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 07 Fetch and check VM status for vm0 until it goes in ERROR state
       openstack.cloud.server_info:
@@ -535,7 +537,7 @@
       until:
         - vm_status_info.servers[0].status == "ERROR"
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 07 Fail if vm0 is not running on compute-0
       ansible.builtin.fail:
@@ -682,7 +684,7 @@
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='state') | first) == 'up'
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 07 Wait for compute-0 to transition to 'enable' on OpenStack controller
       openstack.cloud.compute_service_info:
@@ -690,4 +692,4 @@
       register: hypervisor_list
       until: (hypervisor_list.compute_services | selectattr('host', 'equalto', compute_zero_hostname) | map(attribute='status') | first) == 'enabled'
       retries: 36
-      delay: 10
+      delay: 5

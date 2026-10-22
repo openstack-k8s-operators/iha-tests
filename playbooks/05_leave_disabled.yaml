@@ -59,6 +59,14 @@
       ansible.builtin.set_fact:
         compute2: "compute-{{ string }}-2.ctlplane.example.com"
 
+    - name: 05 Set compute-3 name as fact
+      ansible.builtin.set_fact:
+        compute3: "compute-{{ string }}-3.ctlplane.example.com"
+
+    - name: 05 Set compute-4 name as fact
+      ansible.builtin.set_fact:
+        compute4: "compute-{{ string }}-4.ctlplane.example.com"
+
     - name: Set LEAVE_DISABLED
       ansible.builtin.template:
         src: templates/iha-cm.yaml.j2
@@ -84,7 +92,7 @@
       register: trait_check
       until: trait_check.rc == 0
       retries: 24
-      delay: 10
+      delay: 5
       changed_when: false
 
     - name: 05 Create instance c1
@@ -124,8 +132,8 @@
       register: hypervisor2
       changed_when: false
       retries: 180
-      delay: 10
-      until: hypervisor2.stdout not in hostvars['controller-0']['compute0']
+      delay: 5
+      until: hypervisor2.stdout | length > 0 and hypervisor2.stdout not in hostvars['controller-0']['compute0']
 
     - name: 05 Fetch HYPERVISOR2 for instance
       ansible.builtin.shell: |
@@ -216,7 +224,7 @@
       register: compute_0_status
       until: "'up' in compute_0_status.compute_services | map(attribute='state')"
       retries: 36
-      delay: 10
+      delay: 5
 
     - name: 05 Wait compute-0 to be enabled
       openstack.cloud.compute_service_info:
@@ -226,7 +234,7 @@
       register: compute_0_status
       until: "'enabled' in compute_0_status.compute_services | map(attribute='status')"
       retries: 180
-      delay: 10
+      delay: 5
 
     - name: 05 save logs
       ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
