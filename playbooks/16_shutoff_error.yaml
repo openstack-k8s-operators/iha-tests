@@ -163,7 +163,7 @@
 
     - name: 16 Set vm-error to ERROR state
       ansible.builtin.shell: |
-        openstack --os-cloud default server set --state error vm-error
+        openstack --os-cloud default server set --auto-approve --state error vm-error
       changed_when: false
 
     - name: 16 Wait for vm-error to reach ERROR state

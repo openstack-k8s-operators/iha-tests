@@ -113,39 +113,17 @@
         C0N=$(echo "{{ hostvars['controller-0']['compute0'] }}"|cut -d. -f1)
         C1N=$(echo "{{ hostvars['controller-0']['compute1'] }}"|cut -d. -f1)
 
-        ssh root@$C0N "cp /etc/NetworkManager/system-connections/vlan20-port.nmconnection /root/ || true;
-                       cp /etc/NetworkManager/system-connections/vlan20-if.nmconnection /root/ || true;
-                       nmcli c delete vlan20-port || true;
-                       nmcli c delete vlan20-if || true;
-                       echo 'DEVICE=eth1.20' > /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'MTU=1496' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'ONBOOT=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'HOTPLUG=no' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'NM_CONTROLLED=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'PEERDNS=no' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'VLAN=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'PHYSDEV=eth1' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'BOOTPROTO=static' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'NETMASK=255.255.255.0' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'IPADDR=172.17.0.100' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       ifup eth1.20;
+        ssh root@$C0N "cp /etc/NetworkManager/system-connections/br-ex.20.nmconnection /root/ || true;
+                       nmcli c delete br-ex.20 || true;
+                       nmcli c delete enp6s0.20 || true;
+                       nmcli connection add type vlan con-name enp6s0.20 ifname enp6s0.20 dev enp6s0 id 20 mtu 1496 ipv4.method manual ipv4.addresses 172.17.0.100/24 ipv4.ignore-auto-dns yes ipv6.method disabled connection.autoconnect yes;
+                       nmcli connection up enp6s0.20;
                        sed -i 's/GRUB_TIMEOUT=0/GRUB_TIMEOUT=60/g' /etc/default/grub ; grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg; reboot"
-        ssh root@$C1N "cp /etc/NetworkManager/system-connections/vlan20-port.nmconnection /root/ || true;
-                       cp /etc/NetworkManager/system-connections/vlan20-if.nmconnection /root/ || true;
-                       nmcli c delete vlan20-port || true;
-                       nmcli c delete vlan20-if || true;
-                       echo 'DEVICE=eth1.20' > /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'MTU=1496' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'ONBOOT=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'HOTPLUG=no' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'NM_CONTROLLED=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'PEERDNS=no' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'VLAN=yes' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'PHYSDEV=eth1' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'BOOTPROTO=static' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'NETMASK=255.255.255.0' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       echo 'IPADDR=172.17.0.101' >> /etc/sysconfig/network-scripts/ifcfg-eth1.20;
-                       ifup eth1.20;
+        ssh root@$C1N "cp /etc/NetworkManager/system-connections/br-ex.20.nmconnection /root/ || true;
+                       nmcli c delete br-ex.20 || true;
+                       nmcli c delete enp6s0.20 || true;
+                       nmcli connection add type vlan con-name enp6s0.20 ifname enp6s0.20 dev enp6s0 id 20 mtu 1496 ipv4.method manual ipv4.addresses 172.17.0.101/24 ipv4.ignore-auto-dns yes ipv6.method disabled connection.autoconnect yes;
+                       nmcli connection up enp6s0.20;
                        sed -i 's/GRUB_TIMEOUT=0/GRUB_TIMEOUT=60/g' /etc/default/grub ; grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg; reboot"
       changed_when: false
 
@@ -330,13 +308,13 @@
     - name: 09 Cleanup kdump.conf on compute-0
       ansible.builtin.shell: |
         C0N=$(echo "{{ hostvars['controller-0']['compute0'] }}"|cut -d. -f1)
-        ssh root@$C0N "rm -rf /etc/kdump.conf; dnf reinstall kexec-tools -y; systemctl restart kdump"
+        ssh root@$C0N "rm -rf /etc/kdump.conf; dnf reinstall kexec-tools kdump-utils -y; systemctl restart kdump"
       changed_when: false
 
     - name: 09 Cleanup kdump.conf on compute-1
       ansible.builtin.shell: |
         C1N=$(echo "{{ hostvars['controller-0']['compute1'] }}"|cut -d. -f1)
-        ssh root@$C1N "rm -rf /etc/kdump.conf; dnf reinstall kexec-tools -y; systemctl restart kdump"
+        ssh root@$C1N "rm -rf /etc/kdump.conf; dnf reinstall kexec-tools kdump-utils -y; systemctl restart kdump"
       changed_when: false
 
     - name: 09 Reset iha configmap

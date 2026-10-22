@@ -45,7 +45,7 @@
 
     - name: 26 Pre-cleanup - Remove hosts from evacuable-agg
       ansible.builtin.shell: |
-        for host in $(openstack --os-cloud default aggregate show evacuable-agg -f json 2>/dev/null | python3 -c "import json,sys; data=json.load(sys.stdin); print(' '.join(data.get('hosts',[])))"); do
+        for host in $(openstack --os-cloud default aggregate show evacuable-agg -f json 2>/dev/null | python3 -c "import json,sys; data=json.load(sys.stdin); print(' '.join(data.get('hosts') or data.get('Hosts') or []))"); do
           openstack --os-cloud default aggregate remove host evacuable-agg "$host" 2>/dev/null || true
         done
         openstack --os-cloud default aggregate delete evacuable-agg 2>/dev/null || true
@@ -302,6 +302,15 @@
         fail_msg: >
           VM was NOT evacuated despite being below tagged threshold (25% < 50%).
           Status: {{ vm_evac.servers[0].status }}, Host: {{ vm_evac.servers[0].hypervisor_hostname }}
+
+    - name: 26 Wait for instanceha to confirm test 1 evacuation completed
+      ansible.builtin.shell: |
+        oc -n openstack logs deploy/instanceha-0 | grep -E "evacuated successfully|completed successfully"
+      register: evac_success
+      until: evac_success.rc == 0
+      retries: 36
+      delay: 5
+      changed_when: false
 
     - name: 26 Delete VM from test 1
       openstack.cloud.server:
