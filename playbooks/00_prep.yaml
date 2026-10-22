@@ -19,12 +19,10 @@
   gather_facts: false
   tasks:
     - name: Install openstackclient
-      ansible.builtin.package:
+      ansible.builtin.pip:
         name:
-          - python3-openstackclient
-          - python3-osc-placement
-        state: present
-      become: true
+          - openstackclient
+          - osc-placement
 
     - name: Create dir
       ansible.builtin.file:
