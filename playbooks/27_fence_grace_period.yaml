@@ -254,7 +254,7 @@
         name: c1-fence-grace
 
     - name: 27 save logs
-      ansible.builtin.shell: oc logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
+      ansible.builtin.shell: oc -n openstack logs deploy/instanceha-0 >> /home/zuul/iha-tests-results/{{ name }}.log
       changed_when: false
 
     - name: 27 Reset iha configmap
@@ -269,7 +269,7 @@
 
     - name: 27 Wait for instanceha deployment to be available
       ansible.builtin.shell: |
-        oc wait deployment/instanceha-0 -n openstack --for condition=Available --timeout=300s
+        oc -n openstack wait deployment/instanceha-0 -n openstack --for condition=Available --timeout=300s
       changed_when: false
 
     - name: 27 Create results file (success)
