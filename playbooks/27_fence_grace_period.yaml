@@ -269,7 +269,7 @@
 
     - name: 27 Wait for instanceha deployment to be available
       ansible.builtin.shell: |
-        oc -n openstack wait deployment/instanceha-0 -n openstack --for condition=Available --timeout=300s
+        oc wait deployment/instanceha-0 -n openstack --for condition=Available --timeout=300s
       changed_when: false
 
     - name: 27 Create results file (success)
